@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0;font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body data-juego="Oficina Financiera 3D">
+<title>Oficina Financiera de las Mudas 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: escena 3D a pantalla completa de una oficina de contabilidad y tesorería; HUD oscuro tipo terminal financiera con acento verde billete; panel de inspección lateral (abajo en móvil) */
+[hidden]{display:none!important}
+:root{
+  --panel:#121a1f; --panel-2:#1b262d; --ink:#edf2f3; --muted:#98aab2; --line:#2c3b44;
+  --acc:#46d39a; --acc-ink:#062417; --acc-soft:#173a2c;
+  --ok:#4cc77a; --bad:#ef6a5e; --ok-soft:#163a25; --bad-soft:#3d1c19; --hint:#f2c14e;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden}
+body{background:#c3ccd2;color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;touch-action:none}
+canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+h1,h2,h3{font-family:var(--f-display);margin:0;line-height:1.1;text-wrap:balance}
+p{margin:0}
+.btn{background:var(--acc);color:var(--acc-ink);border:0;border-radius:8px;padding:11px 18px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--acc)}
+.muted{color:var(--muted)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;display:flex;justify-content:space-between;gap:10px;pointer-events:none;align-items:flex-start}
+.hud > *{pointer-events:auto}
+.stats{display:flex;gap:16px;padding:10px 14px;align-items:baseline;flex-wrap:wrap}
+.stats div{display:grid}
+.stats small{font-family:var(--f-mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stats b{font-family:var(--f-mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
+.route{padding:10px 12px;display:grid;gap:4px;font-size:.8rem;min-width:180px}
+.route ul{margin:0;padding:0;display:grid;gap:3px}
+.route li{display:flex;gap:8px;align-items:center;list-style:none}
+.dot{width:9px;height:9px;border-radius:50%;background:#f2b705;flex:none}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+.side{display:grid;gap:8px;justify-items:end}
+#mini{display:block;border-radius:8px;border:1px solid var(--line);background:var(--panel);width:180px;height:120px}
+.zoom{display:flex;gap:6px}
+.exitBtn{position:fixed;z-index:15;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;background:var(--panel);border:1.5px solid var(--bad);color:var(--ink);border-radius:8px;padding:8px 14px;font-weight:600;display:flex;gap:6px;align-items:center}
+.exitBtn:hover{background:var(--bad-soft)}
+.btn.danger{background:var(--bad);color:#200605}
+.zoom button{width:36px;height:36px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-family:var(--f-mono)}
+@media (max-width:640px){ .route{display:none} #mini{width:132px;height:88px} }
+#inspect{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 24px);z-index:5}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 76px);padding:8px 14px;font-size:.88rem;max-width:min(90vw,540px);text-align:center}
+#joy{position:fixed;left:20px;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);width:120px;height:120px;border-radius:50%;background:rgba(18,26,31,.55);border:1.5px solid rgba(70,211,154,.55);touch-action:none;display:none}
+#knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:var(--acc);opacity:.9}
+@media (pointer:coarse){ #joy{display:block} }
+.sheet{position:fixed;z-index:10;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:min(440px,calc(100vw - 24px));overflow:auto;padding:20px;display:grid;gap:14px;align-content:start;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+@media (max-width:640px){ .sheet{top:auto;left:12px;right:12px;width:auto;max-height:72%} }
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.7rem;padding:3px 8px;border-radius:4px;background:var(--acc-soft);color:var(--acc)}
+.evid{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);border-left:3px solid var(--acc);padding-left:10px}
+.q{font-family:var(--f-display);font-weight:700;font-size:1.05rem}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.opt{border:1.5px solid var(--line);background:var(--panel-2);border-radius:8px;padding:9px 10px;text-align:left;display:flex;gap:8px;align-items:center;min-width:0;font-size:.9rem}
+.opt:hover:not(:disabled){border-color:var(--acc)}
+.opt .k{font-family:var(--f-mono);font-size:.7rem;width:22px;height:22px;border-radius:5px;display:grid;place-items:center;background:var(--acc-soft);color:var(--acc);flex:none}
+.opt.is-ok{border-color:var(--ok);background:var(--ok-soft)}
+.opt.is-bad{border-color:var(--bad);background:var(--bad-soft)}
+.opt.dim{opacity:.45}
+.opt:disabled{cursor:default}
+.fb{border-top:1px dashed var(--line);padding-top:12px;display:grid;gap:10px}
+.verdict{font-family:var(--f-display);font-weight:700;font-size:1.05rem}
+.verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)}
+.fix{background:var(--panel-2);border-radius:8px;padding:10px 12px}
+.fix b{color:var(--acc)}
+.hint{color:var(--hint);font-size:.92rem}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.npc{display:flex;gap:12px;align-items:center}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:1.2rem;background:var(--acc-soft);color:var(--acc);flex:none}
+.npc b{display:block;font-family:var(--f-display);font-size:1.05rem}
+.npc span{font-size:.82rem}
+.quote{background:#f4f6f7;color:#14212a;border-radius:12px 12px 12px 2px;padding:12px 14px;font-size:1rem;position:relative}
+.quote.good{background:#e3f7ea} .quote.bad{background:#fde3e0}
+.quote small{display:block;font-family:var(--f-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#5b6b74;margin-bottom:4px}
+.sols{display:grid;gap:6px}
+.sol{border:1.5px solid var(--line);background:var(--panel-2);border-radius:8px;padding:10px 12px;text-align:left;display:flex;gap:10px;align-items:flex-start;font-size:.92rem}
+.sol:hover:not(:disabled){border-color:var(--acc)}
+.sol .k{font-family:var(--f-mono);font-size:.7rem;width:22px;height:22px;border-radius:5px;display:grid;place-items:center;background:var(--acc-soft);color:var(--acc);flex:none}
+.sol.is-ok{border-color:var(--ok);background:var(--ok-soft)} .sol.is-bad{border-color:var(--bad);background:var(--bad-soft)} .sol.dim{opacity:.45}
+.sol:disabled{cursor:default}
+.steps{display:flex;gap:6px;font-family:var(--f-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.steps span{padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
+.steps span.on{border-color:var(--acc);color:var(--acc)}
+.sat{display:grid;gap:4px;min-width:92px}
+.satbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.satbar i{display:block;height:100%;background:var(--acc);transition:width .4s}
+.screen{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px;background:rgba(9,14,17,.72);overflow:auto}
+.card{max-width:720px;width:100%;padding:24px;display:grid;gap:16px}
+.card h1{font-size:clamp(1.8rem,6vw,2.8rem);font-weight:800;letter-spacing:-.02em}
+.card h1 span{color:var(--acc)}
+.grid8{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.grid8 div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--muted)}
+.grid8 b{display:block;color:var(--ink);font-family:var(--f-display);font-size:.98rem}
+input[type=text]{font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2);color:var(--ink);width:100%;max-width:360px}
+label.field{display:grid;gap:6px;font-weight:500}
+.keys{font-size:.85rem;color:var(--muted)}
+.keys kbd{font-family:var(--f-mono);font-size:.75rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 6px;color:var(--ink)}
+.big{font-family:var(--f-display);font-weight:800;font-size:clamp(2.6rem,9vw,4rem);line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:.38em;color:var(--muted);font-weight:500}
+.scoreRow{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+</style>
+
+<canvas id="scene"></canvas>
+<button class="exitBtn" id="exitBtn" aria-label="Salir del recorrido">✕ Salir</button>
+<div class="hud">
+  <div style="display:grid;gap:8px;padding-top:46px">
+    <div class="box stats">
+      <div><small>Hallazgos</small><b id="hFound">0/8</b></div>
+      <div><small>Puntos</small><b id="hPts">0</b></div>
+      <div><small>Tiempo</small><b id="hTime">00:00</b></div>
+      <div class="sat"><small>Satisfacción</small><b id="hSat">50 %</b><div class="satbar"><i id="hSatBar" style="width:50%"></i></div></div>
+    </div>
+    <div class="box route"><span class="eyebrow">Puestos por auditar</span><ul id="routeList"></ul></div>
+  </div>
+  <div class="side">
+    <canvas id="mini" width="360" height="240" aria-label="Plano de la oficina"></canvas>
+    <div class="zoom"><button id="zIn" aria-label="Acercar cámara">+</button><button id="zOut" aria-label="Alejar cámara">−</button></div>
+  </div>
+</div>
+<div class="box toast" id="toast" hidden></div>
+<button class="btn" id="inspect" hidden>Auditar puesto (E)</button>
+<div id="joy"><div id="knob"></div></div>
+<aside class="box sheet" id="sheet" hidden aria-live="polite"></aside>
+<div class="screen" id="screen"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ---------- Contenido ---------- */
+const MUDAS=[
+ {id:"T",name:"Transporte",def:"Mover documentos o información entre áreas sin agregar valor."},
+ {id:"I",name:"Inventario",def:"Facturas, trámites o archivos acumulados en papel o digital."},
+ {id:"M",name:"Movimiento",def:"Desplazamientos y búsquedas innecesarias de las personas."},
+ {id:"E",name:"Esperas",def:"Trámites detenidos por una firma, un sistema o un turno."},
+ {id:"S",name:"Sobreproceso",def:"Pasos, firmas o digitaciones que nadie necesita."},
+ {id:"P",name:"Sobreproducción",def:"Informes, copias o envíos de más o antes de tiempo."},
+ {id:"D",name:"Defectos",def:"Errores que obligan a reversar, corregir o rehacer."},
+ {id:"H",name:"Talento no utilizado",def:"No aprovechar ideas y habilidades del equipo."}
+];
+const STATIONS=[
+ {muda:"E",zone:"Oficina del director",pos:[-15,-6.4],title:"La bandeja del director",
+  story:"Hay 37 facturas revisadas por contabilidad esperando la firma del director. Está de vacaciones y no dejó delegado. Afuera, una persona de tesorería espera para llevarlas a pago.",
+  evid:"Espera promedio: 6 días · Descuentos por pronto pago en riesgo: $8,4 millones",
+  why:"Nadie trabaja sobre las facturas; están detenidas esperando una firma. Es tiempo de espera.",
+  fix:"Delegación automática de aprobaciones durante ausencias, topes por monto y alerta cuando una factura supera 48 horas.",
+  hint:"Las facturas no se mueven ni se corrigen: solo están quietas."},
+ {muda:"I",zone:"Radicación",pos:[-13.4,-2],title:"Radicación desbordada",
+  story:"El escritorio de radicación y el piso alrededor están llenos de facturas sin radicar. Algunas llevan tres semanas y ya bloquean el paso.",
+  evid:"Facturas pendientes: 140 · La más antigua: 21 días",
+  why:"Es trabajo acumulado esperando turno: inventario en proceso, aunque sea papel o correo.",
+  fix:"Radicación diaria con meta de cero facturas de más de 48 horas, factura electrónica y tablero visible del pendiente.",
+  hint:"Fíjate en la cantidad acumulada, no en quién la mueve."},
+ {muda:"T",zone:"Mensajería interna",pos:[14.6,0.6],title:"La carpeta que recorre la oficina",
+  story:"Cada factura física viaja en el carrito del mensajero: de radicación a compras, de compras a contabilidad, a auditoría y de regreso. Sigue el carrito con la mirada.",
+  evid:"4 traslados por factura · 2 días solo en mensajería interna",
+  why:"Lo que se mueve es el documento, de un área a otra, sin que el traslado lo transforme.",
+  fix:"Un único punto de radicación digital y flujo de aprobación dentro del ERP; la factura no vuelve a viajar en papel.",
+  hint:"Observa qué se desplaza: ¿la persona o las carpetas?"},
+ {muda:"D",zone:"Causación",pos:[-4,0.2],title:"La bandeja de reversiones",
+  story:"Una de cada diez facturas se causa con la tarifa de retención en la fuente equivocada. La bandeja roja está llena de comprobantes que hay que reversar y volver a causar.",
+  evid:"Notas de reversión del mes: 31 · Riesgo de sanción tributaria",
+  why:"El error obliga a reversar y rehacer el registro. Es un defecto.",
+  fix:"Parametrizar la tarifa por proveedor y concepto en el ERP y usar lista de chequeo antes de contabilizar.",
+  hint:"¿Qué pasa con el comprobante después del error?"},
+ {muda:"S",zone:"Conciliación bancaria",pos:[5.2,0.2],title:"Imprimir para volver a digitar",
+  story:"Para conciliar, la analista descarga el extracto del banco, lo imprime y lo vuelve a digitar en Excel para cruzarlo con el auxiliar contable. La impresora no para.",
+  evid:"Movimientos digitados a mano al mes: ~2.400",
+  why:"La información ya es digital. Imprimirla y volverla a digitar son pasos que no agregan valor.",
+  fix:"Importar el extracto en formato plano al módulo de conciliación del ERP con reglas de cruce automático.",
+  hint:"Cuenta los pasos que sobran entre el banco y el auxiliar."},
+ {muda:"P",zone:"Sala de juntas",pos:[13.6,-6.4],title:"El informe que nadie lee",
+  story:"En la sala de juntas hay un informe de flujo de caja de 25 páginas en cada puesto. Se prepara todos los días. La gerencia solo mira el saldo final y el resto termina en la papelera.",
+  evid:"40 h al mes elaborándolo · Páginas consultadas: 1 de 25",
+  why:"Se produce más de lo que el cliente interno necesita. Es sobreproducción.",
+  fix:"Acordar con la gerencia un tablero de una página con el saldo y las alertas que sí usa.",
+  hint:"El problema es cuánto se produce."},
+ {muda:"M",zone:"Contador",pos:[-3,8.4],title:"El contador y la impresora del fondo",
+  story:"El contador imprime cada soporte en la impresora compartida del otro extremo y después va al archivo a buscar el comprobante anterior. Míralo caminar de ida y vuelta.",
+  evid:"Desplazamientos al día: ~15 · 1,2 km por jornada",
+  why:"Es la persona la que camina y busca para poder trabajar. Eso es movimiento.",
+  fix:"Soportes digitales consultables desde el puesto, impresora cercana solo para lo indispensable y archivo digital indexado.",
+  hint:"Aquí quien recorre la distancia es una persona."},
+ {muda:"H",zone:"Analista de cuentas",pos:[8.4,8.4],title:"Power BI digitando facturas",
+  story:"La analista tiene certificación en Power BI y Excel avanzado (el diploma está en la pared), pero pasa el 70 % de la jornada digitando facturas a mano. El tablero de ideas está vacío.",
+  evid:"110 h al mes en digitación · Ideas de mejora registradas: 0",
+  why:"Su capacidad para automatizar y analizar no se aprovecha. Es talento no utilizado.",
+  fix:"Asignarle la automatización de la carga de facturas y el tablero de tesorería; abrir un canal de ideas con seguimiento.",
+  hint:"Compara lo que la persona sabe hacer con lo que hace."}
+];
+
+/* Personajes: queja inicial, frase corta en el globo y soluciones (la primera es la correcta; se barajan al mostrar) */
+const TALK={
+ E:{name:"Laura",role:"Tesorería",short:"¿Alguien que pueda firmar?",
+  say:"Llevo toda la mañana aquí con estas carpetas. El director está de vacaciones y nadie más puede firmar. Si no pagamos hoy, perdemos el descuento del 2 %.",
+  sol:[{t:"Delegar la aprobación durante ausencias, con topes por monto y alerta a las 48 horas.",r:"¡Eso! Con un delegado firmamos hoy mismo y no perdemos el descuento."},
+       {t:"Contratar otra persona para que también espere las firmas.",r:"Seríamos dos esperando... y las facturas seguirían quietas."},
+       {t:"Pagar las facturas sin ninguna aprobación para no perder tiempo.",r:"¡Eso nos deja sin control! Auditoría jamás lo aceptaría."}]},
+ I:{name:"Andrés",role:"Auxiliar de radicación",short:"¡No doy abasto con tanta factura!",
+  say:"¡No doy abasto! Me llegan facturas por correo, en físico y hasta por WhatsApp. Ya ni sé cuál es la más antigua y no se puede ni caminar.",
+  sol:[{t:"Radicar todos los días con meta de cero facturas de más de 48 horas y un tablero visible del pendiente.",r:"Con una meta diaria y el tablero sabría qué atender primero. Me sirve."},
+       {t:"Comprar más archivadores para guardar las facturas.",r:"Así solo escondemos la montaña; el pendiente seguiría creciendo."},
+       {t:"Radicar una vez al mes todo junto para ahorrar tiempo.",r:"¿Una vez al mes? La pila sería el doble de alta."}]},
+ T:{name:"Don Hernán",role:"Mensajería interna",short:"Cuarta vuelta con las mismas carpetas...",
+  say:"Hoy ya voy en la cuarta vuelta con las mismas carpetas: radicación, compras, contabilidad, auditoría... y otra vez. Y si se pierde una, me echan la culpa a mí.",
+  sol:[{t:"Radicar digitalmente una sola vez y hacer las aprobaciones dentro del ERP.",r:"Entonces las carpetas no tendrían que viajar. Por fin podría ayudar en otra cosa."},
+       {t:"Darle al mensajero un carrito más rápido.",r:"Llegaría antes, pero daría exactamente las mismas cuatro vueltas."},
+       {t:"Contratar un segundo mensajero.",r:"Duplicamos el costo del recorrido, no lo eliminamos."}]},
+ D:{name:"Paola",role:"Auxiliar contable",short:"¡Otra vez reversando!",
+  say:"Otra vez me devolvieron tres comprobantes por la retención en la fuente. Tengo que reversarlos y causarlos de nuevo. ¡Esto no se acaba nunca!",
+  sol:[{t:"Parametrizar la tarifa de retención por proveedor y concepto en el ERP y usar lista de chequeo.",r:"Si el sistema trae la tarifa correcta, ya no me equivoco al digitarla. ¡Gracias!"},
+       {t:"Revisar todo dos veces al final del mes.",r:"Encontraríamos el error tarde y reversaríamos igual."},
+       {t:"Pedirle a Paola que tenga más cuidado.",r:"Ya tengo cuidado... Sin un estándar, el error vuelve a pasar."}]},
+ S:{name:"Diana",role:"Analista de conciliación",short:"2.400 movimientos a mano...",
+  say:"Descargo el extracto del banco, lo imprimo y lo vuelvo a digitar en Excel para cruzarlo. Son 2.400 movimientos al mes y la impresora no para.",
+  sol:[{t:"Importar el extracto en formato plano al ERP y conciliar con reglas automáticas.",r:"¡Me ahorraría días enteros! Y sin errores de digitación."},
+       {t:"Comprar una impresora más rápida.",r:"Imprimiría más rápido algo que no hace falta imprimir."},
+       {t:"Repartir la digitación entre dos personas.",r:"Seríamos dos haciendo un paso que sobra."}]},
+ P:{name:"Gerente Ramírez",role:"Gerencia financiera",short:"Yo solo necesito una cifra...",
+  say:"Cada mañana me dejan 25 páginas. Yo solo necesito saber cuánta caja tenemos y qué pagos vencen esta semana. Lo demás termina en la papelera.",
+  sol:[{t:"Acordar con la gerencia un tablero de una página con el saldo y las alertas que sí usa.",r:"Perfecto. Una página clara y el equipo recupera 40 horas al mes."},
+       {t:"Enviar el mismo informe por correo en lugar de imprimirlo.",r:"Ahorramos papel, pero seguimos haciendo 24 páginas que nadie lee."},
+       {t:"Hacer el informe más detallado para que sea más útil.",r:"¿Más largo? No, por favor."}]},
+ M:{name:"Carlos",role:"Contador",short:"¡Vuelta número 12 a la impresora!",
+  say:"¡Uf! Esta es mi vuelta número 12 a la impresora del fondo, y todavía tengo que ir al archivo a buscar el comprobante del mes pasado.",
+  sol:[{t:"Tener los soportes digitales consultables desde el puesto y acercar lo de uso frecuente.",r:"¡Sin caminar 1,2 km al día! Así me puedo concentrar en el cierre."},
+       {t:"Comprarle zapatos más cómodos al contador.",r:"Muy amable, pero igual camino 1,2 km al día."},
+       {t:"Que imprima todo de una vez al final de la jornada.",r:"Hago menos viajes, pero sigo imprimiendo lo que podría ver en pantalla y sigo yendo al archivo."}]},
+ H:{name:"Mariana",role:"Analista de cuentas",short:"Podría automatizar esto...",
+  say:"Hice la certificación en Power BI y podría automatizar esta carga en una semana, pero me tienen digitando todo el día. Nadie me ha preguntado.",
+  sol:[{t:"Asignarle la automatización de la carga de facturas y abrir un canal de ideas con seguimiento.",r:"¡Por fin! Les muestro un prototipo el viernes."},
+       {t:"Darle un bono por digitar más rápido.",r:"Digitaría más rápido, pero seguiría sin usar lo que sé hacer."},
+       {t:"Enviarla a otro curso de Power BI.",r:"Ya tengo el certificado; lo que necesito es usarlo."}]}
+};
+const AMBIENT_LINES={
+ q0:["¡Llevo 1 h 20 min en esta fila!","Solo quiero saber cuándo me pagan."],
+ q3:["Me dicen que los pagos son solo los viernes...","¿No hay un portal para consultar?"],
+ clerk:["Todo está en papel, no puedo consultarle nada.","Siguiente turno: 13..."],
+ compras:["Otra vez me devolvieron la carpeta sin firma."],
+ audit:["Reviso lo mismo que ya revisó contabilidad..."]
+};
+const G={started:false,ended:false,player:"",elapsed:0,open:null,stage:"talk",cur:null,hint:false,zoom:1,results:{},sat:50};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mudaById=id=>MUDAS.find(m=>m.id===id);
+const BX=24,BZ=16;
+
+/* ---------- Escena ---------- */
+const canvas=$("scene");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+const coarse=matchMedia("(pointer:coarse)").matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio,coarse?1.5:2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xc3ccd2);scene.fog=new THREE.Fog(0xc3ccd2,55,110);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,250);
+scene.add(new THREE.HemisphereLight(0xffffff,0x56606a,0.55));
+const sun=new THREE.DirectionalLight(0xffffff,0.8);
+sun.position.set(14,34,20);sun.castShadow=true;
+sun.shadow.mapSize.set(coarse?1024:2048,coarse?1024:2048);
+Object.assign(sun.shadow.camera,{left:-32,right:32,top:26,bottom:-30,near:1,far:100});
+scene.add(sun);
+
+const matCache={};
+const mat=(c,o={})=>{const k=c+JSON.stringify(o);return matCache[k]||(matCache[k]=new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85,metalness:.05},o)));};
+const glassMat=new THREE.MeshStandardMaterial({color:0xbfe3f0,transparent:true,opacity:.28,roughness:.1,metalness:.1});
+const geoBox=new THREE.BoxGeometry(1,1,1);
+const colliders=[];
+function box(w,h,d,x,y,z,color,{collide=false,shadow=true,parent=scene,m}={}){
+  const mesh=new THREE.Mesh(geoBox,m||mat(color));
+  mesh.scale.set(w,h,d);mesh.position.set(x,y,z);mesh.castShadow=shadow;mesh.receiveShadow=true;parent.add(mesh);
+  if(collide)colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2});
+  return mesh;
+}
+function addCollider(x,z,w,d){colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2});}
+
+/* Piso y muros */
+const outside=new THREE.Mesh(new THREE.PlaneGeometry(140,110),mat(0x8b949b));outside.rotation.x=-Math.PI/2;outside.position.y=-0.02;scene.add(outside);
+const carpet=new THREE.Mesh(new THREE.PlaneGeometry(BX*2,BZ*2),mat(0x9aa6ae));carpet.rotation.x=-Math.PI/2;carpet.receiveShadow=true;scene.add(carpet);
+function floorRect(x,z,w,d,color){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat(color));m.rotation.x=-Math.PI/2;m.position.set(x,0.01,z);m.receiveShadow=true;scene.add(m);}
+floorRect(0,1,BX*2,2.6,0xc9cfd2);   // pasillo central
+floorRect(0,-6.6,BX*2,2,0xc9cfd2);  // pasillo norte
+floorRect(4,9.8,40,1.8,0xc9cfd2);   // pasillo sur
+floorRect(-18,-11.7,10,7.4,0xb9a58a); // madera director
+floorRect(17.5,-11.7,11,7.4,0xb9a58a); // madera juntas
+const wallC=0xe6e9eb;
+box(BX*2,3.2,0.3,0,1.6,-BZ,wallC,{collide:true});
+box(0.3,2.4,BZ*2,-BX,1.2,0,wallC,{collide:true});
+box(0.3,2.4,BZ*2,BX,1.2,0,wallC,{collide:true});
+box(BX*2,0.8,0.25,0,0.4,BZ,0x7f8a92,{collide:true});
+
+/* Etiquetas */
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function label(title,sub,x,y,z,scale=1){
+  const c=document.createElement("canvas");c.width=512;c.height=sub?168:104;const g=c.getContext("2d");
+  g.fillStyle="rgba(18,26,31,.9)";rr(g,4,4,504,c.height-8,18);g.fill();
+  g.fillStyle="#46d39a";g.fillRect(4,4,10,c.height-8);
+  g.fillStyle="#edf2f3";g.font='600 44px "IBM Plex Sans", Arial, sans-serif';g.fillText(title,32,62);
+  if(sub){g.fillStyle="#b6c5cc";g.font='500 32px "IBM Plex Mono", monospace';g.fillText(sub,32,124);}
+  const tex=new THREE.CanvasTexture(c);tex.anisotropy=4;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthWrite:false}));
+  s.scale.set(6*scale,6*scale*c.height/512,1);s.position.set(x,y,z);scene.add(s);return s;
+}
+function canvasPlane(w,h,draw,cw=512){const c=document.createElement("canvas");c.width=cw;c.height=Math.round(cw*h/w);draw(c.getContext("2d"),c.width,c.height);const t=new THREE.CanvasTexture(c);const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:t,roughness:.9}));m.userData={canvas:c,tex:t};scene.add(m);return m;}
+
+/* Personas */
+function makeHuman({shirt=0x2e5b8c,pants=0x2a2f36,skin=0xc99a77,hair=0x2b1d14,tie=null}={}){
+  const g=new THREE.Group();const hip=0.9;
+  const leg=()=>{const p=new THREE.Group();p.position.y=hip;box(0.22,0.88,0.24,0,-0.44,0,pants,{parent:p});box(0.24,0.12,0.34,0,-0.86,0.05,0x1b1f24,{parent:p});return p;};
+  const lLeg=leg(),rLeg=leg();lLeg.position.x=-0.14;rLeg.position.x=0.14;g.add(lLeg,rLeg);
+  box(0.58,0.72,0.34,0,1.26,0,shirt,{parent:g});
+  if(tie)box(0.08,0.4,0.02,0,1.36,0.18,tie,{parent:g});
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,16,12),mat(skin));head.position.y=1.82;head.castShadow=true;g.add(head);
+  const hr=new THREE.Mesh(new THREE.SphereGeometry(0.21,16,8,0,Math.PI*2,0,Math.PI/2),mat(hair));hr.position.y=1.85;hr.rotation.x=-0.25;g.add(hr);
+  const arm=s=>{const p=new THREE.Group();p.position.set(0.38*s,1.58,0);box(0.17,0.66,0.19,0,-0.33,0,shirt,{parent:p});g.add(p);return p;};
+  return {g,lArm:arm(-1),rArm:arm(1),lLeg,rLeg,phase:Math.random()*6};
+}
+function animHuman(h,dt,speed,mode="walk"){
+  h.phase+=dt*(mode==="walk"?speed*1.6:5);
+  const L=h.lLeg.rotation,R=h.rLeg.rotation,LA=h.lArm.rotation,RA=h.rArm.rotation;
+  if(mode==="walk"){const a=Math.sin(h.phase)*Math.min(0.7,speed*0.12);L.x=a;R.x=-a;LA.x=-a;RA.x=a;}
+  else if(mode==="type"){L.x=R.x=-1.45;LA.x=-1.15+Math.sin(h.phase*2)*0.08;RA.x=-1.15+Math.cos(h.phase*2)*0.08;}
+  else if(mode==="sit"){L.x=R.x=-1.45;LA.x=RA.x=-0.6;}
+  else if(mode==="hold"){L.x=R.x=0;LA.x=RA.x=-0.9;}
+  else{L.x=R.x=0;LA.x=RA.x=Math.sin(h.phase*0.3)*0.04;}
+}
+const shirts=[0x2e5b8c,0x7a2e8c,0x2e8c6a,0x8c5a2e,0x4a4f8c,0xa0303b,0x3b7f8f,0x5c6b2e];
+
+/* Mobiliario */
+function chair(parent,x,z,rot){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;parent.add(g);
+  box(0.5,0.08,0.5,0,0.46,0,0x24292e,{parent:g});box(0.5,0.6,0.08,0,0.8,0.24,0x24292e,{parent:g});box(0.06,0.42,0.06,0,0.22,0,0x555,{parent:g});return g;}
+function stack(parent,x,y,z,n,{colors=[0xf3f1ea,0xd9b56a,0xf3f1ea,0x8fb0d9],w=0.34,d=0.26}={}){
+  for(let i=0;i<n;i++)box(w,0.055,d,x+(Math.random()-.5)*0.03,y+0.03+i*0.056,z+(Math.random()-.5)*0.03,colors[i%colors.length],{parent,shadow:i===n-1});
+}
+// escritorio con persona opcional; rot = dirección hacia donde mira el monitor
+const people=[];
+function desk(x,z,rot=0,{who=null,mode="type",piles=0,monitor=true,collide=true}={}){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);
+  box(1.7,0.06,0.85,0,0.76,0,0xd9d2c3,{parent:g});
+  [[-0.8,-0.38],[0.8,-0.38],[-0.8,0.38],[0.8,0.38]].forEach(([a,b])=>box(0.05,0.74,0.05,a,0.37,b,0x5a6066,{parent:g}));
+  if(monitor){box(0.62,0.4,0.04,0,1.1,-0.28,0x1c2226,{parent:g});box(0.56,0.33,0.01,0,1.1,-0.255,0x3a6f8f,{parent:g});box(0.06,0.18,0.06,0,0.86,-0.3,0x333,{parent:g});box(0.4,0.02,0.14,0,0.8,0.05,0x2c3136,{parent:g});}
+  for(let i=0;i<piles;i++)stack(g,-0.55+(i%3)*0.32,0.79,-0.15+Math.floor(i/3)*0.3,4+((Math.random()*6)|0));
+  chair(g,0,0.75,0);
+  let h=null;
+  if(who){h=makeHuman(who);h.g.position.set(0,-0.42,0.7);h.g.rotation.y=Math.PI;g.add(h.g);people.push({h,mode});}
+  if(collide){const s=Math.abs(Math.sin(rot))>0.5;addCollider(x,z,s?1.0:1.8,s?1.8:1.0);}
+  return {g,h};
+}
+
+/* ---------- Oficina del director (Esperas) ---------- */
+function glassWall(x0,z0,x1,z1){const w=Math.hypot(x1-x0,z1-z0),cx=(x0+x1)/2,cz=(z0+z1)/2;const horiz=Math.abs(z1-z0)<0.01;
+  const m=new THREE.Mesh(geoBox,glassMat);m.scale.set(horiz?w:0.08,2.5,horiz?0.08:w);m.position.set(cx,1.25,cz);scene.add(m);
+  box(horiz?w:0.12,0.1,horiz?0.12:w,cx,2.5,cz,0x4b5359,{shadow:false});box(horiz?w:0.12,0.1,horiz?0.12:w,cx,0.05,cz,0x4b5359,{shadow:false});
+  addCollider(cx,cz,horiz?w:0.2,horiz?0.2:w);}
+glassWall(-BX,-8,-16.2,-8);glassWall(-13.8,-8,-13,-8);glassWall(-13,-BZ,-13,-8);
+const dir=desk(-18,-12.5,0,{monitor:true,piles:0});
+box(1.2,0.04,0.6,-18,0.8,-12.9,0x6b4a2e,{parent:scene,shadow:false});
+// torre de carpetas por firmar
+for(let i=0;i<3;i++)stack(scene,-18.5+i*0.4,0.79,-12.4,14+i*4,{colors:[0xd9b56a,0xf3f1ea,0xc98a3a]});
+for(let i=0;i<4;i++)stack(scene,-16.6+(i%2)*0.4,0,-13.5+Math.floor(i/2)*0.4,10+i*3,{colors:[0xd9b56a,0xf3f1ea]});
+label("Director","Vacaciones hasta el 20",-18,3.2,-12.5,0.85);
+label("Por aprobar: 37",null,-15.4,2.6,-11,0.55);
+const waiter=makeHuman({shirt:0x3b7f8f,tie:0x1c2a40});waiter.g.position.set(-17.4,0,-6.6);waiter.g.rotation.y=Math.PI;scene.add(waiter.g);
+stack(waiter.lArm,0,-0.6,0.22,6,{colors:[0xd9b56a]});
+
+/* ---------- Radicación (Inventario) ---------- */
+const radD=desk(-19,-2.4,0,{who:{shirt:0xa0303b},mode:"type",piles:9});
+const floorPiles=[[-16.4,-3.6],[-16.4,-2.6],[-16.4,-1.6],[-15.6,-3.1],[-15.6,-2.1],[-17.4,-0.6],[-20.5,-0.6],[-21.6,-2],[-21.6,-3],[-15.6,-0.8]];
+floorPiles.forEach(([x,z],i)=>{stack(scene,x,0,z,10+((i*7)%14),{colors:[0xf3f1ea,0xd9b56a,0xf3f1ea,0x8fb0d9],w:0.42,d:0.32});addCollider(x,z,0.5,0.4);});
+box(1.6,1.0,0.5,-19,0.5,-4.8,0x5d6a73,{collide:true}); // archivador
+label("Radicación","Sin radicar: 140",-18.4,3,-2.4,0.85);
+
+/* ---------- Ventanilla de proveedores (contexto) ---------- */
+box(0.6,1.1,5,-20.5,0.55,8.5,0x6f7c85,{collide:true});
+const pane=new THREE.Mesh(geoBox,glassMat);pane.scale.set(0.06,1.2,5);pane.position.set(-20.5,1.7,8.5);scene.add(pane);
+const clerk=makeHuman({shirt:0x2e8c6a});clerk.g.position.set(-21.6,0,8.5);clerk.g.rotation.y=Math.PI/2;scene.add(clerk.g);
+const queue=[];for(let i=0;i<5;i++){const h=makeHuman({shirt:shirts[(i+3)%8],hair:i%2?0x3a2a1a:0x111}); h.g.position.set(-19.2+i*0.95,0,8.5+(i%2?0.12:-0.1)); h.g.rotation.y=-Math.PI/2; scene.add(h.g); queue.push(h); addCollider(h.g.position.x,h.g.position.z,0.6,0.6);}
+label("Ventanilla de proveedores","Consulta de pago: 1 h 20 min",-17,3.2,8.5,0.9);
+
+/* ---------- Causación (Defectos) ---------- */
+const cauD=desk(-5,-3.2,0,{who:{shirt:0x4a4f8c},piles:2});
+desk(-3,-3.2,0,{who:{shirt:0x8c5a2e},piles:1});
+// bandeja roja de reversiones
+box(0.7,0.12,0.5,-4,0.85,-1.7,0xb4302b);
+const redDesk=box(1.4,0.06,0.7,-4,0.76,-1.7,0xd9d2c3,{collide:true});
+box(0.05,0.74,0.05,-4.6,0.37,-1.45,0x5a6066);box(0.05,0.74,0.05,-3.4,0.37,-1.45,0x5a6066);
+stack(scene,-4,0.92,-1.7,9,{colors:[0xf3f1ea,0xe0574b]});
+label("Causación","Reversiones del mes: 31",-4,3.2,-3.2,0.85);
+
+/* ---------- Conciliación bancaria (Sobreproceso) ---------- */
+const conD=desk(5,-3.2,0,{who:{shirt:0x3b7f8f},piles:4});
+box(0.8,0.75,0.6,7,0.375,-3.2,0x5a6066,{collide:true});
+const printer=box(0.75,0.4,0.55,7,0.95,-3.2,0xdfe3e6);
+box(0.5,0.02,0.3,7,1.16,-2.95,0x2c3136);
+const sheets=[];for(let i=0;i<3;i++){const s=box(0.3,0.01,0.4,7,1.02,-2.9,0xffffff,{shadow:false});sheets.push({m:s,t:i/3});}
+const outPile={n:0,meshes:[]};
+label("Conciliación bancaria","Extracto → papel → Excel",5.6,3.2,-3.2,0.9);
+
+/* ---------- Pantalla de indicadores (flujo en vivo) ---------- */
+const kpi={cola:286,dias:44,desc:12.6,t:0};
+const screenMesh=canvasPlane(7,3.4,()=>{},768);
+screenMesh.position.set(0,2.3,-BZ+0.2);
+box(7.3,3.7,0.15,0,2.3,-BZ+0.1,0x1a1f23,{shadow:false});
+function drawKPI(){
+  const {canvas:c,tex}=screenMesh.userData,g=c.getContext("2d"),W=c.width,H=c.height;
+  g.fillStyle="#0e1418";g.fillRect(0,0,W,H);
+  g.fillStyle="#46d39a";g.font='700 38px "IBM Plex Sans", Arial';g.fillText("CUENTAS POR PAGAR · EN VIVO",28,58);
+  const rows=[["Facturas en proceso",kpi.cola.toFixed(0),"▲"],["Días promedio de pago",kpi.dias.toFixed(1),"▲"],["Descuentos perdidos (mes, $M)",kpi.desc.toFixed(1),"▲"]];
+  rows.forEach((r,i)=>{const y=130+i*82;g.fillStyle="#9fb0b8";g.font='500 30px "IBM Plex Sans", Arial';g.fillText(r[0],28,y);g.fillStyle="#edf2f3";g.font='600 46px "IBM Plex Mono", monospace';g.fillText(r[1],W-260,y+6);g.fillStyle="#ef6a5e";g.fillText(r[2],W-70,y+6);});
+  g.fillStyle="#6b7c84";g.font='500 22px "IBM Plex Mono", monospace';g.fillText("Meta: 15 días · 0 descuentos perdidos",28,H-18);
+  tex.needsUpdate=true;
+}
+
+/* ---------- Sala de juntas (Sobreproducción) ---------- */
+glassWall(13,-8,13.6,-8);glassWall(15.2,-8,BX,-8);glassWall(13,-BZ,13,-8);
+box(6,0.08,2.2,18,0.76,-12,0x6b4a2e,{collide:true});
+[[-2.2,-1],[0,-1],[2.2,-1],[-2.2,1],[0,1],[2.2,1]].forEach(([dx,dz])=>{chair(scene,18+dx,-12+dz*1.6,dz<0?Math.PI:0);stack(scene,18+dx,0.8,-12+dz*0.7,12,{colors:[0xffffff,0xeef0f2]});});
+const boss=makeHuman({shirt:0x1f2a38,tie:0xa0303b});chair(scene,21.8,-12,Math.PI/2*-1);boss.g.position.set(21.8,-0.42,-12);boss.g.rotation.y=-Math.PI/2;scene.add(boss.g);people.push({h:boss,mode:"sit"});
+box(0.3,0.01,0.4,21.1,0.81,-12,0xffffff);
+// papelera desbordada
+const bin=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.28,0.7,16),mat(0x4b5359));bin.position.set(14,0.35,-9.2);bin.castShadow=true;scene.add(bin);addCollider(14,-9.2,0.8,0.8);
+for(let i=0;i<10;i++){const b=box(0.3,0.04,0.4,14+(Math.random()-.5)*0.9,0.72+Math.random()*0.25,-9.2+(Math.random()-.5)*0.9,0xffffff);b.rotation.set(Math.random(),Math.random()*3,Math.random()*0.6);}
+label("Sala de juntas","Informe diario: 25 págs",18,3.3,-12,0.9);
+
+/* ---------- Compras y auditoría (paradas del mensajero) ---------- */
+const comD=desk(19,-3.2,0,{who:{shirt:0x5c6b2e},piles:3});
+const audD=desk(19,4.4,Math.PI,{who:{shirt:0x7a2e8c},piles:3});
+label("Compras",null,19,2.7,-3.2,0.6);label("Auditoría",null,19,2.7,4.4,0.6);
+
+/* Mensajero con carrito (Transporte) */
+const courier=makeHuman({shirt:0x2b5aa8});scene.add(courier.g);
+const cart=new THREE.Group();scene.add(cart);
+box(0.7,0.06,0.5,0,0.5,0,0x6f7c85,{parent:cart});box(0.06,0.5,0.5,-0.33,0.75,0,0x6f7c85,{parent:cart});
+stack(cart,-0.12,0.53,0,12,{colors:[0xd9b56a,0xc98a3a,0xf3f1ea]});stack(cart,0.18,0.53,0,8,{colors:[0x8fb0d9,0xd9b56a]});
+const cPath=[[-14.4,-0.6],[-8,0.6],[10,0.6],[16.8,-1.9],[16.8,-5.2],[0,-6.6],[-1,-0.6],[10,0.6],[16.8,3.2],[10,1.6],[-8,1.6]];
+const cStops=new Set([0,4,6,8]);
+const Cs={seg:0,t:0,wait:0};
+
+/* ---------- Contador (Movimiento) ---------- */
+desk(-6,12,Math.PI,{monitor:true,piles:2});
+const acct=makeHuman({shirt:0x8c5a2e,tie:0x2b3a50});scene.add(acct.g);
+const aPath=[[-6,10.6],[-6,9.8],[20.6,9.8],[20.6,11.8],[20.6,9.8],[14.5,9.8],[14.5,12.6],[14.5,9.8],[-6,9.8],[-6,10.6]];
+const As={seg:0,t:0,wait:0};
+// impresora compartida y archivo al fondo este
+box(0.8,0.75,0.6,21.6,0.375,12.6,0x5a6066,{collide:true});box(0.75,0.45,0.55,21.6,0.97,12.6,0xdfe3e6);
+for(let i=0;i<4;i++)box(1.4,2.2,0.5,13+i*1.5,1.1,14.9,0x5d6a73,{collide:true});
+label("Impresora compartida",null,21.6,2.6,12.6,0.6);label("Archivo",null,15.2,3,14.9,0.6);
+
+/* ---------- Analista (Talento) ---------- */
+const anaD=desk(8,12,Math.PI,{who:{shirt:0x2e8c6a,hair:0x3a2a1a},piles:8});
+box(3,1.4,0.12,8,0.7,13.2,0x7f8f99,{collide:true}); // panel divisorio
+const cert=canvasPlane(1.1,0.8,(g,W,H)=>{g.fillStyle="#fbf8ef";g.fillRect(0,0,W,H);g.strokeStyle="#b08a3a";g.lineWidth=14;g.strokeRect(10,10,W-20,H-20);g.fillStyle="#1d2a35";g.font='700 40px "IBM Plex Sans", Arial';g.fillText("CERTIFICADO",W/2-140,110);g.font='500 32px "IBM Plex Sans", Arial';g.fillText("Power BI · Data Analyst",W/2-180,180);g.fillText("Excel avanzado",W/2-115,230);g.fillStyle="#b08a3a";g.beginPath();g.arc(W-90,H-80,36,0,7);g.fill();});
+cert.position.set(7.3,1.25,13.13);cert.rotation.y=Math.PI;
+const ideas=canvasPlane(1.2,0.9,(g,W,H)=>{g.fillStyle="#f4f6f7";g.fillRect(0,0,W,H);g.fillStyle="#1b2a35";g.fillRect(0,0,W,70);g.fillStyle="#46d39a";g.font='700 34px "IBM Plex Sans", Arial';g.fillText("IDEAS DE MEJORA",20,48);g.fillStyle="#1b2a35";g.font='600 54px "IBM Plex Mono", monospace';g.fillText("0",W/2-16,H/2+40);});
+ideas.position.set(8.9,1.25,13.13);ideas.rotation.y=Math.PI;
+label("Analista de cuentas","Digitando 70 % del día",8,3.1,12,0.85);
+
+/* Algunos puestos extra para ambientar */
+desk(-10,-3.2,0,{who:{shirt:shirts[6]},piles:2});desk(10,-3.2,0,{who:{shirt:shirts[1]},piles:1});
+desk(1,12,Math.PI,{who:{shirt:shirts[4]},piles:2});
+
+/* Marcadores */
+const ringGeo=new THREE.RingGeometry(0.95,1.2,40);
+STATIONS.forEach(s=>{const [x,z]=s.pos;
+  const ring=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xf2b705,transparent:true,opacity:.9,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(x,0.03,z);scene.add(ring);
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.32),new THREE.MeshStandardMaterial({color:0xf2b705,emissive:0x5a4200}));gem.position.set(x,2.4,z);scene.add(gem);
+  s.ring=ring;s.gem=gem;s.prompted=false;});
+
+/* Jugador: auditor de mejora continua */
+const me=makeHuman({shirt:0xf3f1ea,pants:0x1f2a38,tie:0x46d39a,hair:0x1b120c});scene.add(me.g);
+box(0.62,0.5,0.38,0,1.32,0,0x1f3b57,{parent:me.g}); // chaleco/saco
+const player={pos:new THREE.Vector3(0,0,4.5),r:0.4,speed:5.6};
+
+/* ---------- Globos de diálogo ---------- */
+function wrapText(g,text,maxW){const words=text.split(" "),lines=[];let l="";words.forEach(w=>{const t=l?l+" "+w:w;if(g.measureText(t).width>maxW&&l){lines.push(l);l=w;}else l=t;});if(l)lines.push(l);return lines;}
+function makeBubble(){const c=document.createElement("canvas");c.width=512;c.height=230;const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthWrite:false,depthTest:false,transparent:true}));
+  sp.scale.set(4.4,4.4*230/512,1);sp.visible=false;sp.renderOrder=20;sp.userData={c,tex,text:""};scene.add(sp);return sp;}
+function setBubble(sp,text,tone="normal"){
+  if(sp.userData.text===text+tone)return;sp.userData.text=text+tone;
+  const {c,tex}=sp.userData,g=c.getContext("2d");g.clearRect(0,0,c.width,c.height);
+  g.font='600 32px "IBM Plex Sans", Arial, sans-serif';
+  const lines=wrapText(g,text,450).slice(0,4),h=36+lines.length*38;
+  g.fillStyle=tone==="good"?"#e3f7ea":tone==="bad"?"#fde3e0":"#ffffff";
+  g.strokeStyle="rgba(20,33,42,.35)";g.lineWidth=3;rr(g,6,6,500,h,24);g.fill();g.stroke();
+  g.beginPath();g.moveTo(232,h+4);g.lineTo(256,Math.min(h+52,226));g.lineTo(282,h+4);g.closePath();g.fill();
+  g.fillStyle="#14212a";lines.forEach((ln,i)=>g.fillText(ln,26,46+i*38));
+  tex.needsUpdate=true;}
+const talkers=[];
+function addTalker(h,lines,station=null){const b=makeBubble();talkers.push({h,lines,station,bubble:b,i:0,t:Math.random()*3});}
+const STATION_NPC={E:waiter,I:radD.h,T:courier,D:cauD.h,S:conD.h,P:boss,M:acct,H:anaD.h};
+STATIONS.forEach(s=>{s.npc=STATION_NPC[s.muda];addTalker(s.npc,[TALK[s.muda].short],s);});
+addTalker(queue[0],AMBIENT_LINES.q0);addTalker(queue[3],AMBIENT_LINES.q3);addTalker(clerk,AMBIENT_LINES.clerk);
+addTalker(comD.h,AMBIENT_LINES.compras);addTalker(audD.h,AMBIENT_LINES.audit);
+const _wp=new THREE.Vector3();
+function updateTalkers(dt){
+  talkers.forEach(tk=>{
+    tk.h.g.getWorldPosition(_wp);
+    const d=Math.hypot(player.pos.x-_wp.x,player.pos.z-_wp.z);
+    const show=G.started&&!G.ended&&d<7.5;
+    tk.bubble.visible=show;if(!show)return;
+    let text,tone="normal";
+    const r=tk.station?G.results[tk.station.muda]:null;
+    if(r&&r.sol!=null){const sol=TALK[tk.station.muda].sol[r.sol];text=sol.r;tone=r.solOk?"good":"bad";}
+    else{tk.t+=dt;if(tk.t>3.6){tk.t=0;tk.i=(tk.i+1)%tk.lines.length;}text=tk.lines[tk.i];}
+    setBubble(tk.bubble,text,tone);
+    tk.bubble.position.set(_wp.x,_wp.y+2.75,_wp.z);
+  });
+}
+
+/* ---------- Entrada ---------- */
+const keys={};
+addEventListener("keydown",e=>{
+  if(e.target.tagName==="INPUT")return;
+  keys[e.key.toLowerCase()]=true;
+  if(G.open!==null){sheetKey(e);
+  }else if((e.key==="e"||e.key==="E"||e.key==="Enter")&&G.started&&!G.ended&&nearStation())openSheet(nearStation());
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase()))e.preventDefault();
+});
+addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
+addEventListener("blur",()=>{for(const k in keys)keys[k]=false;});
+const joy={x:0,y:0,active:false,id:null};
+(()=>{const el=$("joy"),kn=$("knob");
+  const set=e=>{const r=el.getBoundingClientRect();let dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);const m=Math.hypot(dx,dy),max=r.width/2-10;if(m>max){dx*=max/m;dy*=max/m;}joy.x=dx/max;joy.y=dy/max;kn.style.transform=`translate(${dx}px,${dy}px)`;};
+  el.addEventListener("pointerdown",e=>{joy.active=true;joy.id=e.pointerId;el.setPointerCapture(e.pointerId);set(e);});
+  el.addEventListener("pointermove",e=>{if(joy.active&&e.pointerId===joy.id)set(e);});
+  const end=()=>{joy.active=false;joy.x=joy.y=0;kn.style.transform="";};
+  el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);})();
+$("zIn").onclick=()=>{G.zoom=Math.max(0.5,G.zoom-0.15);};
+$("zOut").onclick=()=>{G.zoom=Math.min(1.6,G.zoom+0.15);};
+canvas.addEventListener("wheel",e=>{G.zoom=Math.min(1.6,Math.max(0.5,G.zoom+(e.deltaY>0?0.08:-0.08)));},{passive:true});
+$("inspect").onclick=()=>{const s=nearStation();if(s)openSheet(s);};
+
+/* ---------- Física ---------- */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function resolve(p,r){
+  for(const b of colliders){const cx=clamp(p.x,b.minX,b.maxX),cz=clamp(p.z,b.minZ,b.maxZ),dx=p.x-cx,dz=p.z-cz,d2=dx*dx+dz*dz;
+    if(d2<r*r){if(d2>1e-8){const d=Math.sqrt(d2);p.x=cx+dx/d*r;p.z=cz+dz/d*r;}
+      else{const o=[[b.minX-r-p.x,0],[b.maxX+r-p.x,0],[0,b.minZ-r-p.z],[0,b.maxZ+r-p.z]].sort((a,c)=>Math.abs(a[0]+a[1])-Math.abs(c[0]+c[1]));p.x+=o[0][0];p.z+=o[0][1];}}}
+  p.x=clamp(p.x,-BX+0.5,BX-0.5);p.z=clamp(p.z,-BZ+0.5,BZ-0.5);
+}
+function nearStation(){let best=null,bd=3.1;STATIONS.forEach(s=>{const d=Math.hypot(player.pos.x-s.pos[0],player.pos.z-s.pos[1]);if(d<bd){bd=d;best=s;}});return best;}
+
+/* ---------- Panel: hablar → identificar muda → proponer solución ---------- */
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];}return a;}
+function openSheet(s){
+  G.open=s;G.hint=false;s.prompted=true;$("inspect").hidden=true;
+  const r=G.results[s.muda];
+  if(!r){G.stage="talk";G.cur=null;}
+  else{G.cur=r;G.stage=r.sol==null?"solve":"done";}
+  if(!s.order)s.order=shuffle([0,1,2]);
+  renderSheet();
+}
+function renderSheet(){
+  const s=G.open,T=TALK[s.muda],r=G.cur,st=G.stage;
+  const steps=["Escuchar","Identificar","Proponer"],si=st==="talk"?0:(st==="muda"||st==="mudaFb")?1:2;
+  let h=`<div class="steps">${steps.map((x,i)=>`<span class="${i===si?"on":""}">${i+1}. ${x}</span>`).join("")}</div>
+   <div class="npc"><div class="avatar">${esc(T.name[0])}</div><div><b>${esc(T.name)}</b><span class="muted">${esc(T.role)} · ${esc(s.zone)}</span></div></div>`;
+  if(st==="talk"){
+    h+=`<p class="quote"><small>${esc(T.name)} se queja</small>“${esc(T.say)}”</p>
+      <h2 style="font-size:1.2rem">${esc(s.title)}</h2><p>${esc(s.story)}</p><p class="evid">${esc(s.evid)}</p>
+      <div class="row"><button class="btn" id="goMuda">Analizar la situación (Enter)</button><button class="btn ghost" id="laterBtn">Seguir observando</button></div>`;
+  }else if(st==="muda"||st==="mudaFb"){
+    const ans=st==="mudaFb";
+    h+=`<h2 style="font-size:1.2rem">${esc(s.title)}</h2><p class="evid">${esc(s.evid)}</p>
+      <p class="q">¿Qué desperdicio (muda) ves en este puesto?</p>
+      <div class="opts">${MUDAS.map((m,k)=>{let c="";if(ans)c=m.id===s.muda?"is-ok":m.id===r.picked?"is-bad":"dim";return `<button class="opt ${c}" data-id="${m.id}" ${ans?"disabled":""}><span class="k">${k+1}</span><span>${m.name}</span></button>`;}).join("")}</div>`;
+    if(!ans){h+=(G.hint?`<p class="hint">Pista: ${esc(s.hint)}</p>`:"")+`<div class="row">${G.hint?"":`<button class="btn ghost" id="hintBtn">Pista (−3 puntos)</button>`}<button class="btn ghost" id="laterBtn">Seguir observando</button></div>`;}
+    else h+=`<div class="fb"><p class="verdict ${r.ok?"ok":"bad"}">${r.ok?`Correcto: ${mudaById(s.muda).name}.`:`Elegiste ${mudaById(r.picked).name}. Es ${mudaById(s.muda).name}.`}</p><p>${esc(s.why)}</p>
+      <div class="row"><button class="btn" id="goSolve">Responderle a ${esc(T.name)} (Enter)</button></div></div>`;
+  }else{
+    const done=st==="done";
+    h+=`<p class="quote"><small>${esc(T.name)} te pregunta</small>“Entonces, ¿qué me propones para solucionarlo?”</p>
+      <div class="sols">${s.order.map((idx,k)=>{const o=T.sol[idx];let c="";if(done)c=idx===0?"is-ok":idx===r.sol?"is-bad":"dim";return `<button class="sol ${c}" data-i="${idx}" ${done?"disabled":""}><span class="k">${k+1}</span><span>${esc(o.t)}</span></button>`;}).join("")}</div>`;
+    if(done){const o=T.sol[r.sol];
+      h+=`<div class="fb"><p class="quote ${r.solOk?"good":"bad"}"><small>${esc(T.name)} responde</small>“${esc(o.r)}”</p>
+        <p class="fix"><b>Cómo eliminarlo:</b> ${esc(s.fix)}</p>
+        <div class="row"><button class="btn" id="closeSheet">${allDone()&&!G.ended?"Ver informe":"Seguir recorriendo"}</button></div></div>`;}
+  }
+  $("sheet").hidden=false;$("sheet").innerHTML=h;
+  $("sheet").querySelectorAll(".opt").forEach(b=>b.onclick=()=>choose(b.dataset.id));
+  $("sheet").querySelectorAll(".sol").forEach(b=>b.onclick=()=>solve(+b.dataset.i));
+  const on=(id,fn)=>{const el=$(id);if(el)el.onclick=fn;return el;};
+  on("goMuda",()=>{G.stage="muda";renderSheet();});
+  on("goSolve",()=>{G.stage="solve";renderSheet();});
+  on("hintBtn",()=>{G.hint=true;renderSheet();});
+  on("laterBtn",closeSheet);
+  const c=on("closeSheet",closeSheet);if(c)c.focus();
+}
+function choose(id){const s=G.open;if(!s||G.stage!=="muda")return;const ok=id===s.muda;
+  G.cur={picked:id,ok,points:ok?(G.hint?7:10):0,hint:G.hint,sol:null,solOk:false,order:Object.keys(G.results).length+1,tMuda:G.elapsed};G.results[s.muda]=G.cur;G.stage="mudaFb";renderSheet();updateHUD();}
+function solve(idx){const s=G.open;if(!s||G.stage!=="solve")return;const r=G.cur,ok=idx===0;
+  r.sol=idx;r.solOk=ok;r.points+=ok?10:0;r.tSol=G.elapsed;G.sat=Math.max(0,Math.min(100,G.sat+(ok?6.25:-8)));
+  const col=r.ok&&ok?0x4cc77a:(r.ok||ok)?0xf2a33a:0xef6a5e,em=r.ok&&ok?0x0f3a1f:(r.ok||ok)?0x3a2a08:0x3a100c;
+  s.ring.material.color.setHex(col);s.gem.material.color.setHex(col);s.gem.material.emissive.setHex(em);
+  G.stage="done";renderSheet();updateHUD();}
+const allDone=()=>STATIONS.every(s=>G.results[s.muda]&&G.results[s.muda].sol!=null);
+function closeSheet(){$("sheet").hidden=true;G.open=null;if(allDone()&&!G.ended)endGame();}
+function sheetKey(e){
+  const st=G.stage,k=e.key;
+  if(st==="talk"){if(k==="Enter")$("goMuda")?.click();else if(k==="Escape")closeSheet();}
+  else if(st==="muda"){if(/^[1-8]$/.test(k))choose(MUDAS[+k-1].id);else if(k==="Escape")closeSheet();}
+  else if(st==="mudaFb"){if(k==="Enter"&&document.activeElement?.id!=="goSolve"){G.stage="solve";renderSheet();}}
+  else if(st==="solve"){if(/^[1-3]$/.test(k))solve(G.open.order[+k-1]);}
+  else if(st==="done"){if((k==="Enter"||k==="Escape")&&document.activeElement?.id!=="closeSheet")closeSheet();}
+}
+
+/* ---------- HUD ---------- */
+const score=()=>Object.values(G.results).reduce((a,r)=>a+r.points,0);
+const doneCount=()=>STATIONS.filter(s=>G.results[s.muda]&&G.results[s.muda].sol!=null).length;
+function updateHUD(){$("hFound").textContent=`${doneCount()}/8`;$("hPts").textContent=score();$("hSat").textContent=Math.round(G.sat)+" %";$("hSatBar").style.width=G.sat+"%";$("hSatBar").style.background=G.sat>=60?"var(--ok)":G.sat>=35?"var(--hint)":"var(--bad)";
+  $("routeList").innerHTML=STATIONS.map(s=>{const r=G.results[s.muda];const c=!r||r.sol==null?"":(r.ok&&r.solOk?"ok":"bad");return `<li><span class="dot ${c}"></span>${esc(s.zone)}</li>`;}).join("");}
+const fmt=t=>{t=Math.floor(t);return String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0");};
+let toastT=0;function toast(m,s=5){$("toast").textContent=m;$("toast").hidden=false;toastT=s;}
+const mini=$("mini"),mg=mini.getContext("2d");
+function drawMini(){const W=mini.width,H=mini.height,sx=W/(BX*2+2),sz=H/(BZ*2+2),tx=x=>(x+BX+1)*sx,tz=z=>(z+BZ+1)*sz;
+  mg.fillStyle="#121a1f";mg.fillRect(0,0,W,H);mg.fillStyle="#24313a";mg.fillRect(tx(-BX),tz(-BZ),BX*2*sx,BZ*2*sz);
+  mg.fillStyle="#3c4c57";colliders.forEach(b=>mg.fillRect(tx(b.minX),tz(b.minZ),Math.max(1,(b.maxX-b.minX)*sx),Math.max(1,(b.maxZ-b.minZ)*sz)));
+  STATIONS.forEach(s=>{const r=G.results[s.muda];mg.fillStyle=!r||r.sol==null?"#f2b705":(r.ok&&r.solOk?"#4cc77a":"#ef6a5e");mg.beginPath();mg.arc(tx(s.pos[0]),tz(s.pos[1]),5,0,7);mg.fill();});
+  mg.fillStyle="#2b8cff";mg.beginPath();mg.arc(tx(courier.g.position.x),tz(courier.g.position.z),3.5,0,7);mg.fill();
+  mg.fillStyle="#fff";mg.beginPath();mg.arc(tx(player.pos.x),tz(player.pos.z),5.5,0,7);mg.fill();}
+
+/* ---------- Bucle ---------- */
+function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener("resize",resize);resize();
+function follow(obj,path,st,speed,dt,stops,waitT=1.6){
+  if(st.wait>0){st.wait-=dt;return false;}
+  const a=path[st.seg],b=path[(st.seg+1)%path.length],len=Math.max(0.01,Math.hypot(b[0]-a[0],b[1]-a[1]));
+  st.t+=speed*dt/len;
+  if(st.t>=1){st.t=0;st.seg=(st.seg+1)%path.length;if(stops.has(st.seg))st.wait=waitT;}
+  const p=path[st.seg],q=path[(st.seg+1)%path.length];
+  obj.position.set(p[0]+(q[0]-p[0])*st.t,0,p[1]+(q[1]-p[1])*st.t);
+  if(q[0]!==p[0]||q[1]!==p[1])obj.rotation.y=Math.atan2(q[0]-p[0],q[1]-p[1]);
+  return true;
+}
+const clock=new THREE.Clock();let miniT=0;const camT=new THREE.Vector3().copy(player.pos);
+drawKPI();
+function loop(){
+  const dt=Math.min(clock.getDelta(),0.05),t=clock.elapsedTime;
+  if(G.started&&!G.ended){G.elapsed+=dt;$("hTime").textContent=fmt(G.elapsed);}
+  let mx=0,mz=0;
+  if(G.started&&!G.ended&&G.open===null){if(keys.w||keys.arrowup)mz-=1;if(keys.s||keys.arrowdown)mz+=1;if(keys.a||keys.arrowleft)mx-=1;if(keys.d||keys.arrowright)mx+=1;mx+=joy.x;mz+=joy.y;}
+  const m=Math.hypot(mx,mz);
+  if(m>0.08){const k=Math.min(1,m)/m;player.pos.x+=mx*k*player.speed*dt;player.pos.z+=mz*k*player.speed*dt;resolve(player.pos,player.r);
+    let d=Math.atan2(mx,mz)-me.g.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));me.g.rotation.y+=d*Math.min(1,dt*12);animHuman(me,dt,player.speed*Math.min(1,m));}
+  else animHuman(me,dt,0,"idle");
+  me.g.position.copy(player.pos);
+  if(G.started&&!G.ended&&G.open===null){const s=nearStation();
+    if(s&&!(G.results[s.muda]&&G.results[s.muda].sol!=null)&&!s.prompted)openSheet(s);
+    $("inspect").hidden=!(s&&G.open===null);if(s)$("inspect").textContent=G.results[s.muda]&&G.results[s.muda].sol!=null?"Ver de nuevo (E)":"Hablar con "+TALK[s.muda].name+" (E)";
+    STATIONS.forEach(st=>{if(Math.hypot(player.pos.x-st.pos[0],player.pos.z-st.pos[1])>4.3)st.prompted=false;});}
+  STATIONS.forEach((s,i)=>{s.gem.position.y=2.4+Math.sin(t*2+i)*0.16;s.gem.rotation.y+=dt*1.5;const sc=1+Math.sin(t*3+i)*0.05;s.ring.scale.set(sc,sc,sc);});
+  // mensajero y carrito
+  const moving=follow(courier.g,cPath,Cs,2.6,dt,cStops,1.8);animHuman(courier,dt,moving?2.6:0,moving?"walk":"hold");
+  cart.position.set(courier.g.position.x+Math.sin(courier.g.rotation.y)*0.8,0,courier.g.position.z+Math.cos(courier.g.rotation.y)*0.8);cart.rotation.y=courier.g.rotation.y+Math.PI/2;
+  // contador caminando
+  const am=follow(acct.g,aPath,As,2.4,dt,new Set([3,6,9]),2.2);animHuman(acct,dt,am?2.4:0,am?"walk":"hold");
+  // impresora de conciliación
+  sheets.forEach(s=>{s.t+=dt*0.45;if(s.t>1){s.t=0;outPile.n++;if(outPile.n<=40){if(outPile.n%4===0)outPile.meshes.push(box(0.3,0.018,0.4,7,1.17+outPile.meshes.length*0.02,-2.75,0xffffff,{shadow:false}));}else{outPile.meshes.forEach(x=>scene.remove(x));outPile.meshes=[];outPile.n=0;}}
+    s.m.position.set(7,1.02+s.t*0.12,-2.95+s.t*0.35);s.m.visible=s.t<0.95;});
+  // personas
+  people.forEach(p=>animHuman(p.h,dt,0,p.mode));
+  queue.forEach(q=>animHuman(q,dt,0,"idle"));animHuman(clerk,dt,0,"hold");animHuman(waiter,dt,0,"hold");
+  // indicadores que empeoran
+  kpi.t+=dt;if(kpi.t>1.5){kpi.t=0;kpi.cola+=Math.random()*2.2;kpi.dias+=Math.random()*0.06;kpi.desc+=Math.random()*0.05;drawKPI();}
+  updateTalkers(dt);
+  // cámara
+  camT.lerp(player.pos,Math.min(1,dt*6));
+  camera.position.set(camT.x,camT.y+13.5*G.zoom,camT.z+11.5*G.zoom);camera.lookAt(camT.x,1,camT.z);
+  $("exitBtn").hidden=!(G.started&&!G.ended);
+  if(toastT>0){toastT-=dt;if(toastT<=0)$("toast").hidden=true;}
+  miniT-=dt;if(miniT<=0){drawMini();miniT=0.1;}
+  renderer.render(scene,camera);requestAnimationFrame(loop);
+}
+
+/* ---------- Pantallas ---------- */
+function startScreen(){
+  $("screen").hidden=false;
+  $("screen").innerHTML=`<div class="box card">
+    <p class="eyebrow">Lean en procesos administrativos y financieros</p>
+    <h1>Oficina Financiera de las <span>Mudas</span></h1>
+    <p class="muted">Eres auditor de mejora continua. Recorre el área de contabilidad y tesorería, observa cómo fluyen (o se atascan) las facturas y encuentra los 8 puestos marcados con un anillo amarillo. En cada puesto alguien te contará su problema: primero identifica la muda y después propónle una solución. Cuida la satisfacción del equipo y de los proveedores, y mira la pantalla de indicadores al fondo.</p>
+    <div class="grid8">${MUDAS.map(m=>`<div><b>${m.name}</b>${m.def}</div>`).join("")}</div>
+    <label class="field" for="pname">Nombre del estudiante o grupo<input type="text" id="pname" placeholder="Ej.: Grupo 4 – Finanzas" value="${esc(G.player)}"${window.GATE_NAME?" readonly":""}></label>${window.GATE_NAME?`<p class="muted" style="font-size:.85rem">Acceso aprobado por el docente para ${esc(window.GATE_NAME)}.</p>`:""}
+    <p class="keys">Muévete con <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> o las flechas (en celular, con el joystick). <kbd>E</kbd> audita el puesto, <kbd>1</kbd>–<kbd>8</kbd> responde, rueda del mouse o <kbd>+</kbd>/<kbd>−</kbd> para el zoom.</p>
+    <div class="row"><button class="btn" id="startBtn">Entrar a la oficina</button></div></div>`;
+  $("startBtn").onclick=()=>{G.player=$("pname").value.trim();$("screen").hidden=true;G.started=true;G.startedAt=new Date();toast("Busca los anillos amarillos. Sigue al mensajero y mira la pantalla de indicadores.");};
+}
+/* Nombre fijado por el control de acceso (solo en la versión con aprobación) */
+window.onGateApproved=name=>{G.player=name;if(!G.started&&!G.ended)startScreen();};
+function endGame(){
+  G.ended=true;$("inspect").hidden=true;
+  const s=score(),nota=(s/160*5).toFixed(1),okM=STATIONS.filter(st=>(G.results[st.muda]||{}).ok).length,okS=STATIONS.filter(st=>(G.results[st.muda]||{}).solOk).length,early=!allDone();
+  const miss=STATIONS.filter(st=>!(G.results[st.muda]||{}).ok||!(G.results[st.muda]||{}).solOk);
+  const mark=b=>`<span style="color:var(--${b?"ok":"bad"})">${b?"Acertó":"Falló"}</span>`,none=`<span class="muted">Sin responder</span>`;
+  $("screen").hidden=false;
+  $("screen").innerHTML=`<div class="box card">
+    <p class="eyebrow">Auditoría terminada${G.player?" · "+esc(G.player):""}</p>
+    <h1>Informe de <span>hallazgos</span></h1>
+    ${early?`<p class="hint">Saliste antes de terminar: completaste ${doneCount()} de 8 puestos. Los puestos sin responder cuentan 0 puntos.</p>`:""}
+    <div class="scoreRow">
+      <div><p class="muted">Nota</p><p class="big">${nota}<small> / 5,0</small></p></div>
+      <div><p class="muted">Puntos</p><p class="big" style="font-size:2rem">${s}<small> / 160</small></p></div>
+      <div><p class="muted">Mudas</p><p class="big" style="font-size:2rem">${okM}<small> de 8</small></p></div>
+      <div><p class="muted">Soluciones</p><p class="big" style="font-size:2rem">${okS}<small> de 8</small></p></div>
+      <div><p class="muted">Satisfacción</p><p class="big" style="font-size:2rem">${Math.round(G.sat)}<small> %</small></p></div>
+      <div><p class="muted">Tiempo</p><p class="big" style="font-size:2rem">${fmt(G.elapsed)}</p></div>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Puesto</th><th>Persona</th><th>Muda</th><th>Tu respuesta</th><th>Solución</th></tr></thead><tbody>
+    ${STATIONS.map(st=>{const r=G.results[st.muda];return `<tr><td>${esc(st.zone)}</td><td>${esc(TALK[st.muda].name)}</td><td>${mudaById(st.muda).name}</td><td>${!r?none:mark(r.ok)+(r.ok?"":" ("+mudaById(r.picked).name+")")}</td><td>${!r||r.sol==null?none:mark(r.solOk)}</td></tr>`;}).join("")}
+    </tbody></table></div>
+    ${miss.length?`<div style="display:grid;gap:8px"><h3>Para repasar</h3>${miss.map(m=>`<p class="muted"><b style="color:var(--ink)">${esc(m.zone)}:</b> ${esc(m.why)} <i>Solución:</i> ${esc(TALK[m.muda].sol[0].t)}</p>`).join("")}</div>`:""}
+    <p class="muted" style="font-size:.85rem" id="dlMsg">Descarga el detalle de tu calificación (se abre en Excel) para entregarlo al docente.</p>
+    <div class="row"><button class="btn" id="dlBtn" disabled>Preparando descarga…</button><button class="btn ghost" id="homeBtn">Volver al inicio</button><button class="btn ghost" id="again">Auditar de nuevo</button></div></div>`;
+  $("again").onclick=restart;$("homeBtn").onclick=goHome;
+  setupDownload();
+}
+
+/* ---------- Descarga del detalle de calificación ---------- */
+const GAME_NAME="Oficina Financiera";
+function csvCell(v){v=v==null?"":String(v);return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+const dec=n=>String(n).replace(".",",");
+const two=n=>String(n).padStart(2,"0");
+const fdate=d=>d?`${d.getFullYear()}-${two(d.getMonth()+1)}-${two(d.getDate())}`:"";
+const ftime=d=>d?`${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`:"";
+function buildCSV(){
+  const end=new Date(),s=score(),nota=(s/160*5).toFixed(1);
+  const okM=STATIONS.filter(st=>G.results[st.muda]&&G.results[st.muda].ok).length;
+  const okS=STATIONS.filter(st=>G.results[st.muda]&&G.results[st.muda].solOk).length;
+  const L=[];const row=a=>L.push(a.map(csvCell).join(";"));
+  row(["DETALLE DE CALIFICACIÓN",GAME_NAME]);
+  row(["Estudiante o grupo",G.player||"Sin nombre"]);
+  row(["Fecha",fdate(G.startedAt||end)]);
+  row(["Hora de inicio",ftime(G.startedAt)]);
+  row(["Hora de finalización",ftime(end)]);
+  row(["Duración (mm:ss)",fmt(G.elapsed)]);
+  row(["Estado",allDone()?"Recorrido completo":"Salió antes de terminar ("+doneCount()+" de 8 puestos)"]);
+  row(["Nota (0 a 5)",dec(nota)]);
+  row(["Puntos",s+" de 160"]);
+  row(["Mudas identificadas",okM+" de 8"]);
+  row(["Soluciones correctas",okS+" de 8"]);
+  row(["Satisfacción final (%)",Math.round(G.sat)]);
+  row(["Puntaje","Muda: 10 pts (7 con pista) · Solución: 10 pts"]);
+  row([]);
+  row(["N.° orden","Puesto o zona","Persona","Situación","Muda correcta","Respuesta del estudiante","¿Acertó muda?","¿Usó pista?","Puntos muda","Solución elegida","Solución correcta","¿Acertó solución?","Puntos solución","Puntos totales","Momento de respuesta (mm:ss)","Explicación"]);
+  STATIONS.map(st=>({st,r:G.results[st.muda]})).sort((a,b)=>((a.r&&a.r.order)||99)-((b.r&&b.r.order)||99)).forEach(({st,r})=>{
+    const T=TALK[st.muda];
+    if(!r){row(["—",st.zone,T.name,st.title,mudaById(st.muda).name,"Sin responder","No","",0,"",T.sol[0].t,"No",0,0,"",st.why]);return;}
+    const pm=r.ok?(r.hint?7:10):0,ps=r.solOk?10:0;
+    row([r.order,st.zone,T.name,st.title,mudaById(st.muda).name,mudaById(r.picked).name,r.ok?"Sí":"No",r.hint?"Sí":"No",pm,
+         r.sol!=null?T.sol[r.sol].t:"Sin responder",T.sol[0].t,r.solOk?"Sí":"No",ps,pm+ps,fmt(r.tSol!=null?r.tSol:r.tMuda),st.why]);
+  });
+  return "﻿"+L.join("\r\n");
+}
+function fileName(){
+  const who=(G.player||"estudiante").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,40)||"estudiante";
+  const d=G.startedAt||new Date();
+  return `calificacion_${GAME_NAME.toLowerCase().replace(/[^a-z0-9]+/g,"_")}_${who}_${fdate(d)}_${two(d.getHours())}${two(d.getMinutes())}.csv`;
+}
+let downloadsNS;
+const dlReady=(async()=>{try{downloadsNS=window.claude&&window.claude.use?await window.claude.use("downloads"):null;}catch(e){downloadsNS=null;}return downloadsNS;})();
+async function setupDownload(){
+  const btn=$("dlBtn"),msg=$("dlMsg");if(!btn)return;
+  const ns=await dlReady;
+  if(!$("dlBtn"))return;
+  if(ns){
+    btn.disabled=false;btn.textContent="Descargar calificación (Excel)";
+    btn.onclick=async()=>{
+      btn.disabled=true;
+      try{await ns.save({filename:fileName(),data:buildCSV()});msg.textContent="Archivo descargado. Entrégalo al docente.";btn.textContent="Descargar de nuevo";}
+      catch(e){const c=e&&e.code;
+        if(c==="declined")msg.textContent="Cancelaste la descarga. Puedes intentarlo de nuevo.";
+        else if(c==="rate_limited")msg.textContent="Ya hay una descarga pendiente de confirmar. Espera un momento.";
+        else{msg.textContent="La descarga no está disponible aquí. Usa el botón para copiar el detalle y pégalo en Excel.";useCopy(btn,msg);return;}
+      }
+      btn.disabled=false;
+    };
+  }else if(!window.claude)useFileDownload(btn,msg);
+  else useCopy(btn,msg);
+}
+function useFileDownload(btn,msg){
+  btn.disabled=false;btn.textContent="Descargar calificación (Excel)";
+  btn.onclick=()=>{
+    try{
+      const url=URL.createObjectURL(new Blob([buildCSV()],{type:"text/csv;charset=utf-8"}));
+      const a=document.createElement("a");a.href=url;a.download=fileName();document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      msg.textContent="Archivo descargado. Entrégalo al docente.";btn.textContent="Descargar de nuevo";
+    }catch(e){useCopy(btn,msg);}
+  };
+}
+function useCopy(btn,msg){
+  btn.disabled=false;btn.textContent="Copiar detalle para Excel";
+  msg.textContent="La descarga no está disponible en este navegador. Copia el detalle y pégalo en una hoja de Excel.";
+  btn.onclick=async()=>{
+    const tsv=buildCSV().replace(/^﻿/,"").split("\r\n").map(l=>l.replace(/;/g,"\t")).join("\n");
+    try{await navigator.clipboard.writeText(tsv);msg.textContent="Detalle copiado. Pégalo en Excel con Ctrl+V.";}
+    catch(e){let ta=$("dlText");if(!ta){ta=document.createElement("textarea");ta.id="dlText";ta.readOnly=true;ta.style.cssText="width:100%;height:140px;font:12px var(--f-mono);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px";msg.after(ta);}
+      ta.value=tsv;ta.focus();ta.select();msg.textContent="Selecciona el texto (ya está marcado), cópialo y pégalo en Excel.";}
+  };
+}
+
+
+/* ---------- Salir ---------- */
+function restart(){G.results={};G.ended=false;G.elapsed=0;G.sat=50;STATIONS.forEach(s=>{s.prompted=false;s.order=null;s.ring.material.color.setHex(0xf2b705);s.gem.material.color.setHex(0xf2b705);s.gem.material.emissive.setHex(0x5a4200);});player.pos.set(0,0,4.5);camT.copy(player.pos);updateHUD();$("screen").hidden=true;G.started=true;G.startedAt=new Date();}
+function goHome(){restart();G.started=false;startScreen();}
+function askExit(){
+  if(!G.started||G.ended)return;
+  if(G.open!==null){$("sheet").hidden=true;G.open=null;}
+  G.started=false;$("inspect").hidden=true;
+  const n=doneCount();
+  $("screen").hidden=false;
+  $("screen").innerHTML=`<div class="box card" role="dialog" aria-labelledby="exitTitle">
+    <p class="eyebrow">Recorrido en pausa</p>
+    <h1 id="exitTitle" style="font-size:clamp(1.6rem,5vw,2.2rem)">¿Quieres <span>salir</span>?</h1>
+    <p class="muted">Llevas ${n} de 8 puestos completos y ${score()} puntos. Si terminas ahora, los puestos sin responder cuentan 0 puntos.</p>
+    <div class="row">
+      <button class="btn" id="exFinish">Terminar y ver mi calificación</button>
+      <button class="btn ghost" id="exHome">Salir sin calificación (volver al inicio)</button>
+      <button class="btn ghost" id="exStay">Seguir jugando</button>
+    </div></div>`;
+  $("exFinish").onclick=()=>{G.started=true;endGame();};
+  $("exHome").onclick=goHome;
+  $("exStay").onclick=()=>{$("screen").hidden=true;G.started=true;};
+  $("exStay").focus();
+}
+$("exitBtn").onclick=askExit;
+
+updateHUD();startScreen();loop();
+</script>
+
+<script src="config.js"></script>
+<script src="gate.js"></script>
+</body>
+</html>

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0;font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body data-juego="Cazadores de Mudas Financieras">
+<title>Cazadores de Mudas Financieras</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: una sola columna tipo "expediente" que recorre las estaciones del proceso de cuentas por pagar; mapa de ruta arriba, caso al centro, 8 mudas como teclas abajo */
+:root{
+  --bg:#eef2f1; --paper:#ffffff; --ink:#14231f; --muted:#5a6b66; --line:#cfdad6;
+  --accent:#0f6b5c; --accent-soft:#d6ebe5; --stamp:#b4482b;
+  --ok:#1d7a3f; --ok-soft:#dcf1e2; --bad:#b4302b; --bad-soft:#f8dedc; --warn:#9a6a00;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1715; --paper:#17221f; --ink:#e4ece9; --muted:#97a9a3; --line:#2b3a36;
+  --accent:#4fbfa8; --accent-soft:#1d3a33; --stamp:#e3825f;
+  --ok:#5fcf86; --ok-soft:#173523; --bad:#f07a73; --bad-soft:#3b1b19; --warn:#e2b14a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1715; --paper:#17221f; --ink:#e4ece9; --muted:#97a9a3; --line:#2b3a36;
+  --accent:#4fbfa8; --accent-soft:#1d3a33; --stamp:#e3825f;
+  --ok:#5fcf86; --ok-soft:#173523; --bad:#f07a73; --bad-soft:#3b1b19; --warn:#e2b14a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55}
+.wrap{max-width:860px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:grid;gap:20px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(2rem,6vw,3.2rem);font-weight:800;letter-spacing:-.02em}
+h2{font-size:1.5rem;font-weight:700}
+p{margin:0}
+.eyebrow{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.muted{color:var(--muted)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{background:var(--accent);color:var(--paper);border:0;border-radius:8px;padding:12px 20px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:24px;display:grid;gap:16px;min-width:0}
+
+/* Portada */
+.hero{display:grid;gap:14px}
+.hero h1 span{color:var(--accent)}
+.mudagrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.mudacard{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:4px;min-width:0}
+.mudacard b{font-family:var(--f-display);font-size:1.05rem}
+.mudacard small{color:var(--muted);font-size:.85rem;line-height:1.4}
+.code{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;color:var(--accent)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.modes{display:flex;flex-wrap:wrap;gap:10px}
+.mode{border:1.5px solid var(--line);background:var(--paper);border-radius:8px;padding:12px 16px;text-align:left;display:grid;gap:2px;flex:1 1 200px}
+.mode[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.mode b{font-family:var(--f-display)}
+label.field{display:grid;gap:6px;font-weight:500}
+input[type=text]{font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);max-width:360px;width:100%}
+
+/* Barra de juego */
+.hud{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:baseline;justify-content:space-between}
+.stats{display:flex;gap:18px;font-family:var(--f-mono);font-size:.85rem;font-variant-numeric:tabular-nums}
+.stats b{font-size:1.15rem;color:var(--ink)}
+.hudR{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.exitBtn{background:var(--paper);border:1.5px solid var(--bad);color:var(--bad);border-radius:8px;padding:7px 12px;font-weight:600}
+.exitBtn:hover{background:var(--bad-soft)}
+.exitBar{border:1.5px solid var(--bad);background:var(--bad-soft);border-radius:10px;padding:14px 16px;display:grid;gap:10px}
+.exitBar b{font-family:var(--f-display);font-size:1.05rem}
+.early{background:var(--bad-soft);border-radius:8px;padding:10px 12px}
+.route{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px}
+.stop{flex:1 0 64px;display:grid;gap:6px;font-size:.68rem;color:var(--muted);text-align:center;line-height:1.2}
+.stop i{height:6px;border-radius:3px;background:var(--line);display:block}
+.stop.done-ok i{background:var(--ok)}
+.stop.done-bad i{background:var(--bad)}
+.stop.now i{background:var(--accent)}
+.stop.now{color:var(--ink);font-weight:600}
+
+/* Caso */
+.case{position:relative}
+.case .meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);letter-spacing:.04em}
+.chip.doc{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+.case h2{font-size:1.25rem}
+.case .story{font-size:1.08rem;max-width:65ch}
+.evid{font-family:var(--f-mono);font-size:.82rem;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
+.question{font-family:var(--f-display);font-weight:700;font-size:1.1rem}
+.stamp{position:absolute;top:18px;right:18px;font-family:var(--f-display);font-weight:800;text-transform:uppercase;letter-spacing:.06em;border:3px solid currentColor;border-radius:6px;padding:4px 10px;transform:rotate(-8deg);font-size:.9rem}
+.stamp.ok{color:var(--ok)} .stamp.bad{color:var(--bad)}
+@media (prefers-reduced-motion:no-preference){.stamp{animation:stamp .25s ease-out}}
+@keyframes stamp{from{transform:rotate(-8deg) scale(1.6);opacity:0}to{transform:rotate(-8deg) scale(1);opacity:1}}
+
+.options{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.opt{border:1.5px solid var(--line);background:var(--paper);border-radius:8px;padding:10px 12px;text-align:left;display:flex;gap:10px;align-items:center;min-width:0}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt .k{font-family:var(--f-mono);font-size:.75rem;width:26px;height:26px;border-radius:6px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
+.opt span{font-weight:600}
+.opt.is-ok{border-color:var(--ok);background:var(--ok-soft)}
+.opt.is-bad{border-color:var(--bad);background:var(--bad-soft)}
+.opt:disabled{cursor:default}
+.opt.dim{opacity:.5}
+
+.feedback{border-top:1px dashed var(--line);padding-top:16px;display:grid;gap:10px}
+.feedback .verdict{font-family:var(--f-display);font-weight:700;font-size:1.1rem}
+.feedback .verdict.ok{color:var(--ok)} .feedback .verdict.bad{color:var(--bad)}
+.fix{background:var(--accent-soft);border-radius:8px;padding:12px 14px}
+.fix b{color:var(--accent)}
+.hint{color:var(--warn);font-size:.95rem}
+
+/* Resultados */
+.score{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end}
+.big{font-family:var(--f-display);font-weight:800;font-size:clamp(3rem,10vw,4.6rem);line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:.35em;color:var(--muted);font-weight:500}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:.92rem}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.bar{height:8px;border-radius:4px;background:var(--line);min-width:80px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.review{display:grid;gap:10px}
+.review div{border-left:3px solid var(--bad);padding-left:12px}
+footer{font-size:.82rem;color:var(--muted)}
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+const MUDAS = [
+ {id:"T", name:"Transporte", def:"Mover documentos, archivos o información entre áreas o sistemas sin agregar valor."},
+ {id:"I", name:"Inventario", def:"Acumulación de documentos, facturas o trámites pendientes, en papel o digitales."},
+ {id:"M", name:"Movimiento", def:"Desplazamientos, búsquedas y clics innecesarios de la persona para hacer su trabajo."},
+ {id:"E", name:"Esperas", def:"Tiempo en que el trámite queda detenido por una firma, un sistema o un turno."},
+ {id:"S", name:"Sobreproceso", def:"Pasos, firmas, revisiones o digitaciones que el cliente no necesita."},
+ {id:"P", name:"Sobreproducción", def:"Hacer más, antes o con más detalle del que se pide: informes, copias, envíos."},
+ {id:"D", name:"Defectos", def:"Errores que obligan a corregir, reversar o rehacer el trabajo."},
+ {id:"H", name:"Talento no utilizado", def:"No aprovechar las ideas, habilidades y conocimiento de las personas."}
+];
+const STEPS = ["Solicitud de compra","Orden de compra","Recepción de factura","Causación contable","Aprobación","Programación de pago","Conciliación bancaria","Cierre y reportes"];
+
+const CASES = [
+ {step:0, muda:"S", title:"Cinco firmas para comprar resmas",
+  story:"Una solicitud de papelería por $80.000 necesita la firma del jefe de área, compras, presupuesto, contraloría y el gerente general.",
+  evid:"Tiempo promedio de aprobación: 4 días · Monto: $80.000",
+  why:"Son controles que no agregan valor para un gasto de bajo monto. El nivel de aprobación es mayor del que el riesgo exige.",
+  fix:"Definir topes de autorización por monto (matriz de atribuciones) y aprobar compras menores con una sola firma.",
+  hint:"Pregúntate si cada firma cambia algo para quien recibe la compra."},
+ {step:0, muda:"H", title:"La idea que nadie escuchó",
+  story:"Los auxiliares de compras propusieron usar un catálogo con precios pactados. No existe un canal para proponer mejoras y la idea quedó en el chat del equipo.",
+  evid:"Propuestas de mejora registradas en el año: 0",
+  why:"El conocimiento de quienes hacen el trabajo no se aprovecha. Es el desperdicio del talento humano.",
+  fix:"Crear un buzón o tablero de mejoras con revisión quincenal y reconocimiento a las ideas implementadas.",
+  hint:"El problema no está en el documento sino en las personas."},
+ {step:1, muda:"T", title:"La orden de compra que viaja",
+  story:"La orden de compra se imprime en compras, se envía por mensajería interna a tesorería para un sello y regresa para escanearla y enviarla al proveedor.",
+  evid:"Recorrido del documento: 3 áreas, 2 edificios · 1,5 días",
+  why:"Lo que se mueve es el documento, de un área a otra, sin que ese traslado lo transforme.",
+  fix:"Firma y sello digital dentro del ERP; la OC se envía al proveedor desde el sistema.",
+  hint:"Fíjate qué se desplaza: ¿la persona o el papel?"},
+ {step:1, muda:"D", title:"OC con el precio equivocado",
+  story:"Tres de cada 20 órdenes de compra salen con el precio de la lista anterior. El proveedor las devuelve y hay que anularlas y emitirlas de nuevo.",
+  evid:"OC anuladas este mes: 18 de 120 (15 %)",
+  why:"Un error en el documento obliga a rehacer el trabajo. Es un defecto.",
+  fix:"Bloquear la edición manual de precios y cargar la lista vigente desde el maestro de proveedores.",
+  hint:"Busca la palabra que indica reproceso."},
+ {step:2, muda:"I", title:"Bandeja de entrada con 140 facturas",
+  story:"El buzón de facturación electrónica tiene 140 facturas sin radicar. Algunas llevan tres semanas allí.",
+  evid:"Facturas pendientes: 140 · La más antigua: 21 días",
+  why:"Es trabajo acumulado esperando turno: inventario en proceso, aunque sea digital.",
+  fix:"Radicación diaria con meta de cero facturas de más de 48 horas y un tablero visible del pendiente.",
+  hint:"Piensa en lo que se acumula, no en el tiempo que pasa."},
+ {step:2, muda:"T", title:"De portería a contabilidad en dos días",
+  story:"Las facturas físicas llegan a portería, pasan a recepción, luego a compras y por último a contabilidad, siempre por correo interno.",
+  evid:"4 traslados · 2 días hasta llegar a quien causa",
+  why:"El documento pasa por varias manos solo para trasladarse. Ningún traslado le agrega valor.",
+  fix:"Un único punto de radicación que digitaliza al recibir y envía la imagen directo a contabilidad.",
+  hint:"Cuenta cuántas veces cambia de lugar la factura."},
+ {step:3, muda:"M", title:"Cuatro sistemas para un centro de costos",
+  story:"Para causar una factura, el auxiliar abre el ERP, dos hojas de Excel y una carpeta compartida para encontrar el centro de costos correcto.",
+  evid:"Ventanas abiertas por factura: 7 · Tiempo de búsqueda: 6 min",
+  why:"La persona se mueve de pantalla en pantalla buscando información. En oficina, buscar y saltar entre sistemas es movimiento.",
+  fix:"Una plantilla única de causación con el centro de costos precargado por proveedor.",
+  hint:"Lo que se desplaza aquí es la atención y las manos del auxiliar."},
+ {step:3, muda:"D", title:"Retención mal calculada",
+  story:"Una de cada diez facturas se causa con la tarifa de retención en la fuente equivocada y debe reversarse antes del pago.",
+  evid:"Notas de reversión del mes: 31",
+  why:"El error obliga a reversar y volver a causar. Es un defecto con costo de reproceso y riesgo tributario.",
+  fix:"Parametrizar la tarifa por proveedor y concepto en el ERP y usar una lista de chequeo antes de contabilizar.",
+  hint:"¿Qué pasa con la factura después del error?"},
+ {step:4, muda:"E", title:"El director está de vacaciones",
+  story:"Las facturas esperan seis días en la bandeja del director, que está de vacaciones y no dejó delegado para aprobar.",
+  evid:"Facturas detenidas: 37 · Espera promedio: 6 días",
+  why:"Nadie trabaja sobre la factura; solo está detenida esperando una firma.",
+  fix:"Delegación automática de aprobaciones durante ausencias y alerta cuando una factura supera 48 horas.",
+  hint:"La factura no se mueve ni se corrige: solo está quieta."},
+ {step:4, muda:"S", title:"Revisar lo que ya se revisó",
+  story:"Contabilidad verifica la factura contra la OC y la entrada de almacén. Después, auditoría interna repite exactamente la misma verificación antes de aprobar.",
+  evid:"Verificaciones idénticas por factura: 2",
+  why:"Se hace dos veces una tarea que no aporta más seguridad. Es procesamiento adicional.",
+  fix:"Conciliación automática de tres vías en el ERP; auditoría revisa por muestreo, no el 100 %.",
+  hint:"El cliente no paga por la segunda revisión."},
+ {step:5, muda:"E", title:"Pagos solo los viernes",
+  story:"Tesorería programa pagos un solo día a la semana. Las facturas aprobadas el lunes esperan cuatro días y se pierde el descuento por pronto pago del 2 %.",
+  evid:"Descuentos perdidos en el trimestre: $14,2 millones",
+  why:"El trámite está listo pero queda detenido por la regla de calendario.",
+  fix:"Dos o más ciclos de pago semanales y priorizar facturas con descuento por pronto pago.",
+  hint:"La factura ya está lista. ¿Qué la detiene?"},
+ {step:5, muda:"M", title:"La impresora del otro piso",
+  story:"El analista de tesorería se levanta unas 15 veces al día para ir a la impresora compartida del tercer piso y al archivo a consultar soportes de pago.",
+  evid:"Desplazamientos diarios: ~15 · Distancia: 1,2 km",
+  why:"Es la persona la que camina para poder hacer su trabajo. Eso es movimiento.",
+  fix:"Soportes digitales consultables desde el puesto y eliminar la impresión de comprobantes.",
+  hint:"¿Quién camina: el papel o el analista?"},
+ {step:6, muda:"S", title:"Imprimir para volver a digitar",
+  story:"Los extractos bancarios se descargan en PDF, se imprimen y se digitan otra vez en Excel para cruzarlos con el auxiliar contable.",
+  evid:"Movimientos digitados a mano al mes: ~2.400",
+  why:"La información ya existe en formato digital. Imprimirla y volverla a digitar son pasos que no agregan valor.",
+  fix:"Importar el extracto en formato plano al módulo de conciliación del ERP con reglas de cruce.",
+  hint:"Cuenta los pasos que sobran entre el banco y el auxiliar."},
+ {step:6, muda:"H", title:"Power BI digitando facturas",
+  story:"Una analista con certificación en Power BI y Excel avanzado dedica el 70 % de su jornada a digitar datos a mano en la conciliación.",
+  evid:"Horas al mes en digitación: 110",
+  why:"Su capacidad para automatizar y analizar no se aprovecha. Es talento no utilizado.",
+  fix:"Asignarle la automatización de la conciliación y el tablero de tesorería.",
+  hint:"Mira las habilidades de la persona y lo que hace en realidad."},
+ {step:7, muda:"P", title:"El informe que nadie lee",
+  story:"Tesorería elabora todos los días un informe de flujo de caja de 25 páginas. La gerencia solo consulta el saldo final disponible.",
+  evid:"Horas al mes elaborando el informe: 40 · Páginas leídas: 1",
+  why:"Se produce más de lo que el cliente interno necesita. Es sobreproducción.",
+  fix:"Acordar con la gerencia un tablero de una página con el saldo y las alertas que sí usa.",
+  hint:"El problema es la cantidad de lo producido."},
+ {step:7, muda:"P", title:"Estados de cuenta a todos",
+  story:"Cartera envía cada semana estados de cuenta a los 600 clientes, incluidos los que están al día y nunca los han pedido.",
+  evid:"Envíos semanales: 600 · Clientes con saldo vencido: 45",
+  why:"Se produce y envía más de lo que se necesita y antes de que alguien lo pida.",
+  fix:"Enviar solo a clientes con saldo vencido o por solicitud, y dejar el estado disponible en un portal.",
+  hint:"¿Cuántos de esos envíos alguien pidió?"},
+ {step:7, muda:"I", title:"Dos bodegas de comprobantes",
+  story:"Se guardan tres copias físicas de cada comprobante de egreso en contabilidad, tesorería y archivo central. Ya ocupan dos bodegas.",
+  evid:"Cajas de archivo: 1.150 · Arriendo de bodega: $3,8 millones/mes",
+  why:"Son documentos almacenados en exceso que ocupan espacio y cuestan dinero.",
+  fix:"Archivo digital único con la tabla de retención documental y destrucción controlada de copias.",
+  hint:"Piensa en lo que se guarda, no en cómo se mueve."},
+ {step:7, muda:"D", title:"Cierre que se reabre",
+  story:"Después del cierre de mes aparecen gastos causados en el periodo equivocado y hay que reabrir el cierre para ajustarlos.",
+  evid:"Cierres reabiertos en el año: 7 de 9",
+  why:"El error obliga a repetir trabajo ya terminado. Es un defecto.",
+  fix:"Calendario de cierre con fecha de corte de causación y validación automática de periodo.",
+  hint:"¿Qué hay que volver a hacer?"}
+];
+
+const state = {screen:"start", mode:8, player:"", deck:[], i:0, answers:[], hintUsed:false, picked:null};
+const app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mudaById = id => MUDAS.find(m => m.id === id);
+
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function buildDeck(n){
+  let pick;
+  if(n >= CASES.length) pick = CASES.slice();
+  else {
+    // garantiza al menos un caso de cada muda
+    const byMuda = MUDAS.map(m => shuffle(CASES.filter(c => c.muda === m.id)));
+    pick = byMuda.map(list => list[0]);
+    const rest = shuffle(CASES.filter(c => !pick.includes(c)));
+    pick = pick.concat(rest.slice(0, n - pick.length));
+  }
+  // ordena por estación del proceso para que se sienta como un recorrido
+  return shuffle(pick).sort((a,b) => a.step - b.step);
+}
+
+function score(){return state.answers.reduce((s,a) => s + a.points, 0);}
+function maxScore(){return state.deck.length * 10;}
+
+function render(){
+  if(state.screen === "start") renderStart();
+  else if(state.screen === "play") renderPlay();
+  else renderEnd();
+  window.scrollTo(0, 0);
+}
+
+function renderStart(){
+  app.innerHTML = `
+  <header class="hero">
+    <p class="eyebrow">Lean en procesos administrativos y financieros</p>
+    <h1>Cazadores de <span>Mudas</span> Financieras</h1>
+    <p class="muted" style="max-width:62ch">Vas a recorrer el proceso de cuentas por pagar, desde la solicitud de compra hasta el cierre. En cada estación aparece una situación real de oficina. Tu tarea es decidir qué desperdicio (muda) hay ahí.</p>
+  </header>
+  <section class="sheet">
+    <h2>Las 8 mudas</h2>
+    <div class="mudagrid">${MUDAS.map(m => `<div class="mudacard"><span class="code">${m.id}</span><b>${m.name}</b><small>${m.def}</small></div>`).join("")}</div>
+  </section>
+  <section class="sheet">
+    <h2>Preparar el recorrido</h2>
+    <label class="field" for="player">Nombre del estudiante o del grupo
+      <input type="text" id="player" placeholder="Ej.: Grupo 3 – Valentina, Gabriel" value="${esc(state.player)}"${window.GATE_NAME?" readonly":""}>
+    </label>
+    <div class="modes" role="group" aria-label="Duración">
+      <button class="mode" data-mode="8" aria-pressed="${state.mode===8}"><b>Ronda rápida</b><span class="muted">8 casos, uno por cada muda</span></button>
+      <button class="mode" data-mode="${CASES.length}" aria-pressed="${state.mode===CASES.length}"><b>Recorrido completo</b><span class="muted">${CASES.length} casos del proceso</span></button>
+    </div>
+    <p class="muted">Cada acierto vale 10 puntos. Si pides una pista y aciertas, recibes 7. Al final verás tu nota de 0 a 5 y los casos que conviene repasar.</p>
+    <div class="row"><button class="btn" id="go">Empezar recorrido</button></div>
+  </section>
+  <footer>Puedes responder con el teclado: teclas 1 a 8 para elegir y Enter para continuar.</footer>`;
+  app.querySelectorAll(".mode").forEach(b => b.onclick = () => {state.mode = +b.dataset.mode; state.player = document.getElementById("player").value; renderStart();});
+  document.getElementById("go").onclick = () => {
+    state.player = document.getElementById("player").value.trim();
+    state.deck = buildDeck(state.mode); state.i = 0; state.answers = []; state.hintUsed = false; state.picked = null; state.early = false; state.exiting = false;
+    state.screen = "play"; render();
+  };
+}
+
+function renderPlay(){
+  const c = state.deck[state.i];
+  const answered = state.picked !== null;
+  const ok = answered && state.picked === c.muda;
+  const route = state.deck.map((d,k) => {
+    let cls = "";
+    if(k < state.answers.length) cls = state.answers[k].ok ? "done-ok" : "done-bad";
+    else if(k === state.i) cls = "now";
+    return `<div class="stop ${cls}" title="${esc(STEPS[d.step])}"><i></i>${k+1}</div>`;
+  }).join("");
+  app.innerHTML = `
+  <div class="hud">
+    <div><p class="eyebrow">${state.player ? esc(state.player) : "Recorrido"}</p><h2 style="font-size:1.1rem">Caso ${state.i+1} de ${state.deck.length}</h2></div>
+    <div class="hudR"><div class="stats"><span>Puntos <b>${score()}</b></span><span>Racha <b>${streak()}</b></span></div><button class="exitBtn" id="exitBtn">✕ Salir</button></div>
+  </div>
+  <nav class="route" aria-label="Avance">${route}</nav>
+  ${state.exiting?`<div class="exitBar" role="dialog" aria-label="Salir"><b>¿Quieres salir?</b><p>Has respondido ${state.answers.length} de ${state.deck.length} casos. Si terminas ahora, los casos sin responder cuentan 0 puntos.</p>
+    <div class="row"><button class="btn" id="exFinish">Terminar y ver mi resultado</button><button class="btn ghost" id="exHome">Salir sin resultado (volver al inicio)</button><button class="btn ghost" id="exStay">Seguir jugando</button></div></div>`:""}
+  <article class="sheet case">
+    ${answered ? `<div class="stamp ${ok?"ok":"bad"}">${ok?"Correcto":"Revisar"}</div>` : ""}
+    <div class="meta"><span class="chip">Estación ${c.step+1} · ${esc(STEPS[c.step])}</span><span class="chip doc">Caso CXP-${String(CASES.indexOf(c)+101)}</span></div>
+    <h2>${esc(c.title)}</h2>
+    <p class="story">${esc(c.story)}</p>
+    <p class="evid">${esc(c.evid)}</p>
+    <p class="question">¿Qué desperdicio (muda) identificas en esta situación?</p>
+    <div class="options" role="group" aria-label="Mudas">
+      ${MUDAS.map((m,k) => {
+        let cls = "";
+        if(answered){ if(m.id === c.muda) cls = "is-ok"; else if(m.id === state.picked) cls = "is-bad"; else cls = "dim"; }
+        return `<button class="opt ${cls}" data-id="${m.id}" ${answered?"disabled":""}><span class="k">${k+1}</span><span>${m.name}</span></button>`;
+      }).join("")}
+    </div>
+    ${!answered ? (state.hintUsed ? `<p class="hint">Pista: ${esc(c.hint)}</p>` : `<div class="row"><button class="btn ghost" id="hint">Ver pista (−3 puntos)</button></div>`) : ""}
+    ${answered ? `
+    <div class="feedback" aria-live="polite">
+      <p class="verdict ${ok?"ok":"bad"}">${ok ? `Bien: es ${mudaById(c.muda).name}.` : `Elegiste ${mudaById(state.picked).name}. La respuesta es ${mudaById(c.muda).name}.`}</p>
+      <p>${esc(c.why)}</p>
+      <p class="fix"><b>Cómo eliminarlo:</b> ${esc(c.fix)}</p>
+      <div class="row"><button class="btn" id="next">${state.i+1 < state.deck.length ? "Siguiente estación" : "Ver resultados"}</button></div>
+    </div>` : ""}
+  </article>`;
+  app.querySelectorAll(".opt").forEach(b => b.onclick = () => choose(b.dataset.id));
+  document.getElementById("exitBtn").onclick = () => {state.exiting = true; renderPlay(); document.getElementById("exStay").focus();};
+  if(state.exiting){
+    document.getElementById("exFinish").onclick = () => {state.exiting=false; state.early = state.answers.length < state.deck.length; state.screen="end"; render();};
+    document.getElementById("exHome").onclick = () => {state.exiting=false; state.screen="start"; render();};
+    document.getElementById("exStay").onclick = () => {state.exiting=false; renderPlay();};
+  }
+  const h = document.getElementById("hint"); if(h) h.onclick = () => {state.hintUsed = true; renderPlay();};
+  const n = document.getElementById("next"); if(n){ n.onclick = next; if(!state.exiting) n.focus(); }
+}
+
+function streak(){let s=0;for(let k=state.answers.length-1;k>=0;k--){if(state.answers[k].ok)s++;else break;}return s;}
+
+function choose(id){
+  if(state.picked !== null) return;
+  const c = state.deck[state.i];
+  const ok = id === c.muda;
+  state.picked = id;
+  state.answers.push({c, picked:id, ok, points: ok ? (state.hintUsed ? 7 : 10) : 0});
+  renderPlay();
+}
+function next(){
+  state.i++; state.picked = null; state.hintUsed = false;
+  if(state.i >= state.deck.length) state.screen = "end";
+  render();
+}
+
+function renderEnd(){
+  const s = score(), max = maxScore();
+  const notaNum = s / max * 5, nota = notaNum.toFixed(1).replace(".", ",");
+  const okCount = state.answers.filter(a => a.ok).length;
+  const rows = MUDAS.map(m => {
+    const list = state.answers.filter(a => a.c.muda === m.id);
+    if(!list.length) return "";
+    const hit = list.filter(a => a.ok).length;
+    const pct = Math.round(hit / list.length * 100);
+    return `<tr><td><span class="code">${m.id}</span> ${m.name}</td><td>${hit} / ${list.length}</td><td><div class="bar"><i style="width:${pct}%"></i></div></td></tr>`;
+  }).join("");
+  const misses = state.answers.filter(a => !a.ok);
+  const msg = notaNum >= 4.5 ? "Identificas las mudas con seguridad." : notaNum >= 3.5 ? "Buen nivel. Repasa las mudas que confundiste." : "Repasa las definiciones y vuelve a intentarlo.";
+  app.innerHTML = `
+  <header class="hero">
+    <p class="eyebrow">Resultado${state.player ? " · " + esc(state.player) : ""}</p>
+    <h1>Recorrido terminado</h1>
+    ${state.early?`<p class="early">Saliste antes de terminar: respondiste ${state.answers.length} de ${state.deck.length} casos. Los casos sin responder cuentan 0 puntos.</p>`:""}
+  </header>
+  <section class="sheet">
+    <div class="score">
+      <div><p class="muted">Nota</p><p class="big">${nota}<small> / 5,0</small></p></div>
+      <div><p class="muted">Puntos</p><p class="big" style="font-size:2.2rem">${s}<small> / ${max}</small></p></div>
+      <div><p class="muted">Aciertos</p><p class="big" style="font-size:2.2rem">${okCount}<small> de ${state.answers.length}</small></p></div>
+    </div>
+    <p>${msg}</p>
+  </section>
+  <section class="sheet">
+    <h2>Aciertos por muda</h2>
+    <div class="tablewrap"><table><thead><tr><th>Muda</th><th>Aciertos</th><th>Dominio</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </section>
+  ${misses.length ? `<section class="sheet"><h2>Casos para repasar</h2><div class="review">${misses.map(a => `<div><b>${esc(a.c.title)}</b><p class="muted">Respondiste ${mudaById(a.picked).name}; era ${mudaById(a.c.muda).name}. ${esc(a.c.why)}</p></div>`).join("")}</div></section>` : ""}
+  <div class="row"><button class="btn" id="again">Jugar otra vez</button><button class="btn ghost" id="home">Cambiar modo</button></div>
+  <footer>Captura esta pantalla para entregar tu resultado al docente.</footer>`;
+  document.getElementById("again").onclick = () => {state.deck = buildDeck(state.mode); state.i=0; state.answers=[]; state.picked=null; state.hintUsed=false; state.early=false; state.exiting=false; state.screen="play"; render();};
+  document.getElementById("home").onclick = () => {state.screen = "start"; render();};
+}
+
+document.addEventListener("keydown", e => {
+  if(state.screen !== "play" || e.target.tagName === "INPUT" || state.exiting) return;
+  if(state.picked === null && /^[1-8]$/.test(e.key)) choose(MUDAS[+e.key - 1].id);
+  else if(state.picked !== null && e.key === "Enter" && document.activeElement?.id !== "next") next();
+});
+
+window.onGateApproved = name => { state.player = name; if (state.screen === "start") renderStart(); };
+render();
+</script>
+
+<script src="config.js"></script>
+<script src="gate.js"></script>
+</body>
+</html>

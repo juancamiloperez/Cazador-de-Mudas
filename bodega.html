@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0;font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body data-juego="Bodega de las Mudas 3D">
+<title>Bodega de las Mudas 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: escena 3D a pantalla completa; HUD de seguridad industrial (pizarra oscura + amarillo de demarcación) flotando en las esquinas; panel de inspección como hoja lateral (abajo en móvil) */
+:root{
+  --panel:#141c22; --panel-2:#1d2830; --ink:#eef2f4; --muted:#9aabb5; --line:#2e3d47;
+  --safety:#f2b705; --ok:#4cc77a; --bad:#ef6a5e; --ok-soft:#163a25; --bad-soft:#3d1c19;
+  --sky:#a9bccb;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden}
+body{background:var(--sky);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;touch-action:none}
+canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--safety);outline-offset:2px}
+h1,h2,h3{font-family:var(--f-display);margin:0;line-height:1.1;text-wrap:balance}
+p{margin:0}
+.btn{background:var(--safety);color:#1a1400;border:0;border-radius:8px;padding:11px 18px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--safety)}
+.muted{color:var(--muted)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+
+/* HUD */
+.hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;display:flex;justify-content:space-between;gap:10px;pointer-events:none;align-items:flex-start}
+.hud > *{pointer-events:auto}
+.stats{display:flex;gap:16px;padding:10px 14px;align-items:baseline;flex-wrap:wrap}
+.stats div{display:grid;gap:0}
+.stats small{font-family:var(--f-mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stats b{font-family:var(--f-mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
+.route{padding:10px 12px;display:grid;gap:4px;font-size:.8rem;min-width:170px}
+.route li{display:flex;gap:8px;align-items:center;list-style:none}
+.route ul{margin:0;padding:0;display:grid;gap:3px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--safety);flex:none}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+.side{display:grid;gap:8px;justify-items:end}
+#mini{display:block;border-radius:8px;border:1px solid var(--line);background:var(--panel);width:180px;height:120px}
+.zoom{display:flex;gap:6px}
+.exitBtn{position:fixed;z-index:15;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;background:var(--panel);border:1.5px solid var(--bad);color:var(--ink);border-radius:8px;padding:8px 14px;font-weight:600;display:flex;gap:6px;align-items:center}
+.exitBtn:hover{background:var(--bad-soft)}
+.btn.danger{background:var(--bad);color:#200605}
+.zoom button{width:36px;height:36px;border-radius:8px;background:var(--panel);border:1px solid var(--line);font-family:var(--f-mono)}
+@media (max-width:640px){ .route{display:none} #mini{width:132px;height:88px} }
+
+#inspect{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 24px);z-index:5}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 76px);padding:8px 14px;font-size:.88rem;max-width:min(90vw,520px);text-align:center}
+
+/* Joystick */
+#joy{position:fixed;left:20px;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);width:120px;height:120px;border-radius:50%;background:rgba(20,28,34,.55);border:1.5px solid rgba(242,183,5,.5);touch-action:none;display:none}
+#knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:var(--safety);opacity:.9}
+@media (pointer:coarse){ #joy{display:block} }
+
+/* Panel de inspección */
+.sheet{position:fixed;z-index:10;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:min(440px,calc(100vw - 24px));overflow:auto;padding:20px;display:grid;gap:14px;align-content:start;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+@media (max-width:640px){ .sheet{top:auto;left:12px;right:12px;width:auto;max-height:72%} }
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.7rem;padding:3px 8px;border-radius:4px;background:#2b2508;color:var(--safety)}
+.story{font-size:1rem}
+.evid{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);border-left:3px solid var(--safety);padding-left:10px}
+.q{font-family:var(--f-display);font-weight:700;font-size:1.05rem}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.opt{border:1.5px solid var(--line);background:var(--panel-2);border-radius:8px;padding:9px 10px;text-align:left;display:flex;gap:8px;align-items:center;min-width:0;font-size:.9rem}
+.opt:hover:not(:disabled){border-color:var(--safety)}
+.opt .k{font-family:var(--f-mono);font-size:.7rem;width:22px;height:22px;border-radius:5px;display:grid;place-items:center;background:#2b2508;color:var(--safety);flex:none}
+.opt.is-ok{border-color:var(--ok);background:var(--ok-soft)}
+.opt.is-bad{border-color:var(--bad);background:var(--bad-soft)}
+.opt.dim{opacity:.45}
+.opt:disabled{cursor:default}
+.fb{border-top:1px dashed var(--line);padding-top:12px;display:grid;gap:10px}
+.verdict{font-family:var(--f-display);font-weight:700;font-size:1.05rem}
+.verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)}
+.fix{background:var(--panel-2);border-radius:8px;padding:10px 12px}
+.fix b{color:var(--safety)}
+.hint{color:var(--safety);font-size:.92rem}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.npc{display:flex;gap:12px;align-items:center}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:1.2rem;background:#2b2508;color:var(--safety);flex:none}
+.npc b{display:block;font-family:var(--f-display);font-size:1.05rem}
+.npc span{font-size:.82rem}
+.quote{background:#f4f6f7;color:#14212a;border-radius:12px 12px 12px 2px;padding:12px 14px;font-size:1rem}
+.quote.good{background:#e3f7ea} .quote.bad{background:#fde3e0}
+.quote small{display:block;font-family:var(--f-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#5b6b74;margin-bottom:4px}
+.sols{display:grid;gap:6px}
+.sol{border:1.5px solid var(--line);background:var(--panel-2);border-radius:8px;padding:10px 12px;text-align:left;display:flex;gap:10px;align-items:flex-start;font-size:.92rem}
+.sol:hover:not(:disabled){border-color:var(--safety)}
+.sol .k{font-family:var(--f-mono);font-size:.7rem;width:22px;height:22px;border-radius:5px;display:grid;place-items:center;background:#2b2508;color:var(--safety);flex:none}
+.sol.is-ok{border-color:var(--ok);background:var(--ok-soft)} .sol.is-bad{border-color:var(--bad);background:var(--bad-soft)} .sol.dim{opacity:.45}
+.sol:disabled{cursor:default}
+.steps{display:flex;gap:6px;font-family:var(--f-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.steps span{padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
+.steps span.on{border-color:var(--safety);color:var(--safety)}
+.sat{display:grid;gap:4px;min-width:92px}
+.satbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.satbar i{display:block;height:100%;background:var(--safety);transition:width .4s}
+
+/* Pantallas */
+.screen{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px;background:rgba(10,15,19,.72);overflow:auto}
+.card{max-width:720px;width:100%;padding:24px;display:grid;gap:16px}
+.card h1{font-size:clamp(1.8rem,6vw,2.8rem);font-weight:800;letter-spacing:-.02em}
+.card h1 span{color:var(--safety)}
+.grid8{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.grid8 div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--muted)}
+.grid8 b{display:block;color:var(--ink);font-family:var(--f-display);font-size:.98rem}
+input[type=text]{font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2);color:var(--ink);width:100%;max-width:360px}
+label.field{display:grid;gap:6px;font-weight:500}
+.keys{font-size:.85rem;color:var(--muted)}
+.keys kbd{font-family:var(--f-mono);font-size:.75rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 6px;color:var(--ink)}
+.big{font-family:var(--f-display);font-weight:800;font-size:clamp(2.6rem,9vw,4rem);line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:.38em;color:var(--muted);font-weight:500}
+.scoreRow{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<canvas id="scene"></canvas>
+
+<button class="exitBtn" id="exitBtn" aria-label="Salir del recorrido">✕ Salir</button>
+<div class="hud">
+  <div style="display:grid;gap:8px;padding-top:46px">
+    <div class="box stats">
+      <div><small>Hallazgos</small><b id="hFound">0/8</b></div>
+      <div><small>Puntos</small><b id="hPts">0</b></div>
+      <div><small>Tiempo</small><b id="hTime">00:00</b></div>
+      <div class="sat"><small>Satisfacción</small><b id="hSat">50 %</b><div class="satbar"><i id="hSatBar" style="width:50%"></i></div></div>
+    </div>
+    <div class="box route"><span class="eyebrow">Zonas por inspeccionar</span><ul id="routeList"></ul></div>
+  </div>
+  <div class="side">
+    <canvas id="mini" width="360" height="240" aria-label="Mapa de la bodega"></canvas>
+    <div class="zoom"><button id="zIn" aria-label="Acercar cámara">+</button><button id="zOut" aria-label="Alejar cámara">−</button></div>
+  </div>
+</div>
+<div class="box toast" id="toast" hidden></div>
+<button class="btn" id="inspect" hidden>Inspeccionar zona (E)</button>
+<div id="joy"><div id="knob"></div></div>
+<aside class="box sheet" id="sheet" hidden aria-live="polite"></aside>
+<div class="screen" id="screen"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ---------- Contenido pedagógico ---------- */
+const MUDAS=[
+ {id:"T",name:"Transporte",def:"Mover materiales entre zonas sin agregarles valor."},
+ {id:"I",name:"Inventario",def:"Material acumulado por encima de lo necesario."},
+ {id:"M",name:"Movimiento",def:"Desplazamientos y búsquedas innecesarias de las personas."},
+ {id:"E",name:"Esperas",def:"Personas, equipos o vehículos detenidos esperando."},
+ {id:"S",name:"Sobreproceso",def:"Hacer más de lo que el cliente pide o paga."},
+ {id:"P",name:"Sobreproducción",def:"Producir o alistar antes o en más cantidad de la pedida."},
+ {id:"D",name:"Defectos",def:"Errores que obligan a reprocesar, devolver o rehacer."},
+ {id:"H",name:"Talento no utilizado",def:"No aprovechar ideas y habilidades del personal."}
+];
+const STATIONS=[
+ {muda:"E",zone:"Muelle 2",pos:[-14,-15.2],title:"Camiones esperando en el muelle",
+  story:"Hay tres camiones con mercancía. Solo un muelle está habilitado y el montacargas está apagado porque el único operario certificado aún no llega al turno.",
+  evid:"Camión en muelle: 2 h 40 min · Cola: 2 camiones · Costo de standby: $95.000/h",
+  why:"Vehículos, equipos y personas están detenidos sin agregar valor. Es tiempo de espera.",
+  fix:"Agendar citas de descarga por franjas, habilitar más muelles en horas pico y formar operarios polivalentes.",
+  hint:"Observa qué está quieto: el camión, el montacargas y el conductor."},
+ {muda:"T",zone:"Zona temporal",pos:[13.5,-13.5],title:"El pallet que da tres vueltas",
+  story:"Cada pallet recibido va del muelle a una zona temporal, de allí a control de calidad y después regresa al rack. Mira el recorrido del montacargas.",
+  evid:"Recorrido por pallet: 180 m · Recorrido mínimo posible: 45 m",
+  why:"Lo que se mueve es el material, de zona en zona, sin que el traslado lo transforme.",
+  fix:"Inspección de calidad en el muelle y almacenamiento directo (putaway) a la ubicación final; rediseñar el layout en flujo.",
+  hint:"Sigue con la vista al montacargas y cuenta las paradas."},
+ {muda:"I",zone:"Pasillo 2",pos:[-13,-9],title:"Pasillo bloqueado",
+  story:"El pasillo 2 está ocupado por pallets de una referencia comprada en exceso. Los montacargas deben rodear la nave para llegar a las ubicaciones del fondo.",
+  evid:"Cobertura de la referencia: 94 días · Meta: 20 días · Pallets en piso: 12",
+  why:"Es material almacenado por encima de lo necesario. Ocupa espacio, inmoviliza capital y obstaculiza el flujo.",
+  fix:"Punto de pedido según consumo real, clasificación ABC, ubicaciones de reserva y 5S para mantener pasillos libres.",
+  hint:"La causa del bloqueo es la cantidad de producto."},
+ {muda:"M",zone:"Picking",pos:[-7,-9],title:"El picker que cruza toda la bodega",
+  story:"El operario de alistamiento camina hasta el fondo del pasillo por las referencias que más se venden y regresa a empaque por cada pedido. Míralo caminar.",
+  evid:"Distancia por turno: 14 km · 15 referencias concentran el 70 % de las líneas",
+  why:"La persona hace desplazamientos innecesarios para poder trabajar. Eso es movimiento.",
+  fix:"Ubicar la alta rotación cerca de despacho (slotting ABC) y alistar por lotes con rutas de picking.",
+  hint:"Aquí quien recorre la distancia es una persona, no un pallet."},
+ {muda:"D",zone:"Reproceso",pos:[17.5,-5],title:"Mesa de reproceso",
+  story:"Los clientes devolvieron cajas con la etiqueta de otro pedido. Dos operarios pasan el turno abriendo, verificando y reetiquetando.",
+  evid:"Pedidos con error de etiqueta: 6 % · Cajas en reproceso hoy: 48",
+  why:"Un error obliga a rehacer el trabajo y genera devoluciones. Es un defecto.",
+  fix:"Escaneo de verificación antes de cerrar la caja (poka-yoke) y etiqueta impresa automáticamente desde el pedido.",
+  hint:"Las cajas rojas regresaron del cliente."},
+ {muda:"S",zone:"Empaque",pos:[19.6,9],title:"Triple película y doble etiqueta",
+  story:"En empaque cada pallet se envuelve con tres capas de película estirable y lleva dos etiquetas. El cliente pidió una capa y una etiqueta.",
+  evid:"Consumo de película: 3 veces el estándar · 4 min extra por pallet",
+  why:"Se hace más trabajo del que el cliente requiere y paga. Es sobreproceso.",
+  fix:"Estándar de empaque por cliente con instrucción visual en la estación.",
+  hint:"Compara lo que se hace con lo que el cliente pidió."},
+ {muda:"P",zone:"Despacho",pos:[10,12],title:"Pedidos que nadie ha confirmado",
+  story:"Para adelantar trabajo, el turno de la noche alistó los pedidos de la próxima semana. No están confirmados y ocupan toda la zona de despacho.",
+  evid:"Pallets alistados sin orden: 22 · Pedidos cancelados el mes pasado: 18 %",
+  why:"Se alistó antes y en más cantidad de lo pedido. Es sobreproducción, y genera inventario y reprocesos si cancelan.",
+  fix:"Alistar solo contra orden confirmada (sistema pull) y nivelar la carga de trabajo por día.",
+  hint:"El problema empezó cuando se trabajó antes de tiempo."},
+ {muda:"H",zone:"Tablero",pos:[-24,16.3],title:"El tablero de ideas vacío",
+  story:"Un montacarguista con 10 años de experiencia propuso reubicar la alta rotación. Hoy está barriendo y el tablero de mejoras sigue vacío desde enero.",
+  evid:"Ideas de mejora registradas en el año: 0 · Rotación de personal: 32 %",
+  why:"No se aprovechan el conocimiento ni las ideas de quienes hacen el trabajo.",
+  fix:"Reunión diaria de 10 minutos, tablero kaizen con seguimiento y reconocimiento a las ideas implementadas.",
+  hint:"Mira a la persona y lo que sabe hacer."}
+];
+
+/* ---------- Estado ---------- */
+/* Personajes: queja, frase corta del globo y soluciones (la primera es la correcta; se barajan al mostrar) */
+const TALK={
+ E:{name:"Don Jairo",role:"Conductor del camión",short:"¡2 h 40 min esperando para descargar!",
+  say:"Llevo 2 h 40 min con el camión parqueado. El montacargas está ahí, pero el operario certificado no ha llegado. A mí me pagan por viaje, no por esperar.",
+  sol:[{t:"Agendar citas de descarga por franjas y formar operarios polivalentes para el montacargas.",r:"Si me dan una hora fija y alguien que descargue, salgo en 40 minutos."},
+       {t:"Pedir a los conductores que lleguen más temprano.",r:"¿Más temprano? Entonces esperaría todavía más."},
+       {t:"Cobrarle al transportador el tiempo de espera.",r:"¿A mí? Si el problema es que aquí nadie descarga..."}]},
+ T:{name:"Wilson",role:"Montacarguista",short:"Muelle, temporal, calidad... ¡otra vuelta!",
+  say:"Cada pallet lo muevo tres veces antes de que llegue al rack: muelle, zona temporal, calidad y de vuelta. Gasto combustible y tiempo, y el pallet sigue igual.",
+  sol:[{t:"Inspeccionar en el muelle y almacenar directo en la ubicación final (putaway directo).",r:"Un solo viaje por pallet. Así sí rinde el turno."},
+       {t:"Comprar un montacargas más rápido.",r:"Daría las mismas vueltas, solo que más rápido y con más riesgo."},
+       {t:"Agregar otra zona temporal más cerca del muelle.",r:"Sería otra parada más en el recorrido."}]},
+ I:{name:"Yesid",role:"Auxiliar de inventarios",short:"¡No puedo pasar por el pasillo 2!",
+  say:"Para llegar a las ubicaciones del fondo tengo que rodear toda la nave. Ese producto lleva 94 días ahí y compras sigue pidiendo más.",
+  sol:[{t:"Definir el punto de pedido según el consumo real, aplicar clasificación ABC y mantener pasillos libres con 5S.",r:"Si compramos lo que se consume, el pasillo queda libre."},
+       {t:"Arrendar otra bodega para el sobrestock.",r:"Pagaríamos arriendo por guardar lo que no vendemos."},
+       {t:"Apilar los pallets más alto para que ocupen menos piso.",r:"¡Eso es peligroso! Y el exceso sigue ahí."}]},
+ M:{name:"Nelson",role:"Operario de picking",short:"¡Otra vez hasta el fondo!",
+  say:"Las referencias que más se venden están al fondo del pasillo. Por cada pedido camino hasta allá y vuelvo. Termino el turno con 14 km encima.",
+  sol:[{t:"Ubicar la alta rotación cerca de despacho (slotting ABC) y alistar por lotes con rutas.",r:"¡Lo que más sale, a la mano! Así hago el doble de pedidos."},
+       {t:"Darle una bicicleta para moverse más rápido.",r:"Llegaría antes, pero seguiría yendo al fondo cada vez."},
+       {t:"Contratar otro picker para repartir los pedidos.",r:"Seríamos dos caminando 14 km."}]},
+ D:{name:"Sandra",role:"Auxiliar de devoluciones",short:"48 cajas para reetiquetar...",
+  say:"Los clientes devolvieron cajas con la etiqueta de otro pedido. Llevamos todo el turno abriendo, verificando y reetiquetando. Y mañana llegan más.",
+  sol:[{t:"Escanear cada caja contra el pedido antes de cerrarla (poka-yoke) e imprimir la etiqueta desde el sistema.",r:"Si el escáner no deja cerrar la caja equivocada, el error no sale de la bodega."},
+       {t:"Poner más personas en la mesa de reproceso.",r:"Corregiríamos más rápido, pero los errores seguirían llegando."},
+       {t:"Revisar solo las cajas de los clientes que se quejan.",r:"Los demás también reciben errores; solo que no llaman."}]},
+ S:{name:"Óscar",role:"Empacador",short:"Tres capas, dos etiquetas...",
+  say:"Me dijeron que envolviera cada pallet con tres capas y dos etiquetas, por si acaso. El cliente pidió una sola capa. Gasto el triple de película.",
+  sol:[{t:"Definir un estándar de empaque por cliente con una instrucción visual en la estación.",r:"Con la ficha del cliente a la vista, hago solo lo que pide."},
+       {t:"Comprar película más gruesa.",r:"Seguiríamos envolviendo de más, y más caro."},
+       {t:"Envolver más rápido para compensar.",r:"El problema no es la velocidad; es la capa que sobra."}]},
+ P:{name:"Claudia",role:"Supervisora de despacho",short:"¿Y si cancelan estos pedidos?",
+  say:"El turno de la noche alistó los pedidos de la próxima semana para adelantar trabajo. No están confirmados y ya no tengo dónde poner los despachos de hoy.",
+  sol:[{t:"Alistar solo contra pedido confirmado (sistema pull) y nivelar la carga de trabajo por día.",r:"Así la zona de despacho queda libre para lo de hoy."},
+       {t:"Habilitar más espacio de despacho en el patio.",r:"Más espacio para pedidos que quizá nunca salgan."},
+       {t:"Alistar con dos semanas de anticipación para ir más adelantados.",r:"¡Peor! El 18 % de los pedidos se cancela."}]},
+ H:{name:"Don Efraín",role:"Montacarguista certificado",short:"Diez años de experiencia... y barriendo.",
+  say:"Tengo diez años manejando montacargas y propuse reubicar la alta rotación. Nadie me respondió. Hoy me tienen barriendo.",
+  sol:[{t:"Hacer una reunión diaria de 10 minutos y un tablero kaizen con seguimiento a las ideas del equipo.",r:"Si escuchan mi idea, la implementamos la otra semana."},
+       {t:"Darle un bono por barrer mejor.",r:"No es la plata; es que no usan lo que sé."},
+       {t:"Contratar un consultor externo para que diga lo mismo.",r:"Pagarían por lo que yo ya propuse gratis."}]}
+};
+const G={started:false,ended:false,player:"",elapsed:0,open:null,stage:"talk",cur:null,hint:false,zoom:1,results:{},sat:50};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mudaById=id=>MUDAS.find(m=>m.id===id);
+
+/* ---------- Escena ---------- */
+const canvas=$("scene");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+const coarse=matchMedia("(pointer:coarse)").matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio,coarse?1.5:2));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xa9bccb);
+scene.fog=new THREE.Fog(0xa9bccb,60,120);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,300);
+scene.add(new THREE.HemisphereLight(0xffffff,0x4a5560,0.5));
+const sun=new THREE.DirectionalLight(0xffffff,0.85);
+sun.position.set(18,40,22); sun.castShadow=true;
+sun.shadow.mapSize.set(coarse?1024:2048,coarse?1024:2048);
+Object.assign(sun.shadow.camera,{left:-42,right:42,top:36,bottom:-42,near:1,far:120});
+scene.add(sun);
+
+const matCache={};
+const mat=(c,o={})=>{const k=c+JSON.stringify(o);return matCache[k]||(matCache[k]=new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85,metalness:.05},o)));};
+const geoBox=new THREE.BoxGeometry(1,1,1);
+const colliders=[];
+function box(w,h,d,x,y,z,color,{collide=false,shadow=true,parent=scene,m}={}){
+  const mesh=new THREE.Mesh(geoBox,m||mat(color));
+  mesh.scale.set(w,h,d); mesh.position.set(x,y,z);
+  mesh.castShadow=shadow; mesh.receiveShadow=true; parent.add(mesh);
+  if(collide) colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2});
+  return mesh;
+}
+function addCollider(x,z,w,d){colliders.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2});}
+
+/* Patio y piso */
+const yard=new THREE.Mesh(new THREE.PlaneGeometry(160,120),mat(0x6d747a));
+yard.rotation.x=-Math.PI/2; yard.position.y=-0.02; yard.receiveShadow=true; scene.add(yard);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,40),mat(0xa9aea9));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+function stripe(x,z,w,d,color=0xf2b705){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat(color));m.rotation.x=-Math.PI/2;m.position.set(x,0.01,z);m.receiveShadow=true;scene.add(m);return m;}
+stripe(-8,-17.6,40,0.15); // demarcación muelle
+[-22,-16,-10,-4].forEach(x=>{stripe(x-1.05,3,0.1,18.6);stripe(x+1.05,3,0.1,18.6);});
+// zona de despacho y zona temporal
+[[10,16.3,10.8,5.6],[16.5,-16.6,5,3.4],[26,-12.5,4,4]].forEach(([x,z,w,d])=>{stripe(x,z-d/2,w,0.12);stripe(x,z+d/2,w,0.12);stripe(x-w/2,z,0.12,d);stripe(x+w/2,z,0.12,d);});
+
+/* Muros */
+const wallC=0xdfe3e6, wallH=3;
+// norte con puertas en x=-22,-14,-6 (ancho 3.6)
+let segs=[[-30,-23.8],[-20.2,-15.8],[-12.2,-7.8],[-4.2,30]];
+segs.forEach(([a,b])=>box(b-a,wallH,0.4,(a+b)/2,wallH/2,-20,wallC,{collide:true}));
+box(60,0.6,0.4,0,wallH+0.3-0.6+0.3,-20,0x8a949b,{shadow:false}); // dintel
+box(0.4,2.4,40,-30,1.2,0,wallC,{collide:true});
+box(0.4,2.4,40,30,1.2,0,wallC,{collide:true});
+box(60,0.8,0.3,0,0.4,20,0x8a949b,{collide:true}); // baranda sur baja para ver la escena
+// puertas cerradas
+box(3.6,2.6,0.15,-22,1.3,-20.1,0x8f9aa3);
+box(3.6,2.6,0.15,-6,1.3,-20.1,0x8f9aa3);
+// marco puerta abierta
+box(3.6,0.25,0.5,-14,2.75,-20,0x2d343a);
+
+/* Etiquetas flotantes */
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function label(title,sub,x,y,z,scale=1){
+  const c=document.createElement("canvas");c.width=512;c.height=sub?168:104;const g=c.getContext("2d");
+  g.fillStyle="rgba(20,28,34,.9)";rr(g,4,4,504,c.height-8,18);g.fill();
+  g.fillStyle="#f2b705";g.fillRect(4,4,10,c.height-8);
+  g.fillStyle="#eef2f4";g.font='600 44px "IBM Plex Sans", Arial, sans-serif';g.fillText(title,32,62);
+  if(sub){g.fillStyle="#b8c6ce";g.font='500 32px "IBM Plex Mono", monospace';g.fillText(sub,32,124);}
+  const tex=new THREE.CanvasTexture(c);tex.anisotropy=4;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthWrite:false}));
+  s.scale.set(6.2*scale,6.2*scale*c.height/512,1);s.position.set(x,y,z);scene.add(s);return s;
+}
+
+/* Humanos */
+function makeHuman({shirt=0x2e5b8c,vest=0xff7a1a,helmet=0xf2b705,pants=0x2a2f36}={}){
+  const g=new THREE.Group();
+  const hip=0.9;
+  const leg=()=>{const p=new THREE.Group();p.position.y=hip;const l=box(0.22,0.88,0.24,0,-0.44,0,pants,{parent:p});box(0.24,0.12,0.34,0,-0.86,0.05,0x1b1f24,{parent:p});return p;};
+  const lLeg=leg(),rLeg=leg();lLeg.position.x=-0.14;rLeg.position.x=0.14;g.add(lLeg,rLeg);
+  box(0.58,0.72,0.34,0,1.26,0,shirt,{parent:g});
+  box(0.62,0.5,0.38,0,1.32,0,vest,{parent:g});
+  box(0.62,0.06,0.39,0,1.22,0,0xdfe6ea,{parent:g}); // cinta reflectiva
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,16,12),mat(0xc99a77));head.position.y=1.82;head.castShadow=true;g.add(head);
+  const hat=new THREE.Mesh(new THREE.SphereGeometry(0.23,16,8,0,Math.PI*2,0,Math.PI/2),mat(helmet));hat.position.y=1.86;hat.castShadow=true;g.add(hat);
+  box(0.5,0.03,0.5,0,1.86,0.04,helmet,{parent:g});
+  const arm=s=>{const p=new THREE.Group();p.position.set(0.38*s,1.58,0);box(0.17,0.66,0.19,0,-0.33,0,shirt,{parent:p});g.add(p);return p;};
+  const lArm=arm(-1),rArm=arm(1);
+  return {g,lArm,rArm,lLeg,rLeg,phase:Math.random()*6};
+}
+function animHuman(h,dt,speed,mode="walk"){
+  h.phase+=dt*(mode==="walk"?speed*1.6:3);
+  if(mode==="walk"){const a=Math.sin(h.phase)*Math.min(0.7,speed*0.12);h.lLeg.rotation.x=a;h.rLeg.rotation.x=-a;h.lArm.rotation.x=-a;h.rArm.rotation.x=a;}
+  else if(mode==="work"){h.lLeg.rotation.x=h.rLeg.rotation.x=0;h.lArm.rotation.x=-0.9+Math.sin(h.phase)*0.25;h.rArm.rotation.x=-0.9+Math.cos(h.phase)*0.25;}
+  else if(mode==="sweep"){h.lLeg.rotation.x=h.rLeg.rotation.x=0;h.lArm.rotation.x=-0.5+Math.sin(h.phase*0.6)*0.35;h.rArm.rotation.x=-0.5+Math.sin(h.phase*0.6)*0.35;}
+  else {h.lLeg.rotation.x=h.rLeg.rotation.x=h.lArm.rotation.x=h.rArm.rotation.x=0;}
+}
+
+/* Pallets */
+const boxColors=[0xb88a55,0xa97a48,0xc49a62,0x9c6f3f];
+function pallet(x,z,{h=1.1,color,parent=scene,collide=false,rot=0,stack=1}={}){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;parent.add(g);
+  box(1.2,0.14,1.0,0,0.07,0,0x9b7a4c,{parent:g});
+  for(let s=0;s<stack;s++){
+    const y0=0.14+s*(h+0.16);
+    box(1.12,h,0.94,0,y0+h/2,0,color??boxColors[(Math.random()*4)|0],{parent:g});
+    if(s<stack-1) box(1.2,0.14,1.0,0,y0+h+0.07,0,0x9b7a4c,{parent:g});
+  }
+  if(collide) addCollider(x,z,1.25,1.05);
+  return g;
+}
+
+/* Racks */
+function rack(x,z0,z1){
+  const len=z1-z0,depth=1.4,levels=[0.0,1.7,3.4],H=4.9;
+  for(let z=z0;z<=z1+0.01;z+=len/6){box(0.12,H,0.12,x-depth/2,H/2,z,0x2b5aa8);box(0.12,H,0.12,x+depth/2,H/2,z,0x2b5aa8);}
+  levels.slice(1).forEach(y=>{box(0.1,0.16,len,x-depth/2,y,(z0+z1)/2,0xe8771e);box(0.1,0.16,len,x+depth/2,y,(z0+z1)/2,0xe8771e);});
+  levels.forEach(y=>{for(let z=z0+1.2;z<z1-0.6;z+=1.55){if(Math.random()<0.86){const p=pallet(x,z,{h:0.7+Math.random()*0.6,rot:Math.PI/2});p.position.y=y+0.08;}}});
+  addCollider(x,(z0+z1)/2,depth+0.2,len+0.2);
+}
+[-22,-16,-10,-4].forEach(x=>rack(x,-6,12));
+label("Pasillo 1",null,-19,5.6,-6.8,0.6);label("Pasillo 2",null,-13,5.6,-6.8,0.6);label("Pasillo 3",null,-7,5.6,-6.8,0.6);
+
+/* Camiones */
+function truck(x,z,rot,color){
+  const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);
+  box(2.5,2.8,9,0,1.95,0,color,{parent:g});
+  box(2.5,0.3,9,0,0.45,0,0x2b2f33,{parent:g});
+  box(2.4,2.2,2.2,0,1.6,-5.9,0xd9dde0,{parent:g});
+  box(2.2,0.9,0.1,0,2.1,-7.02,0x2a3a46,{parent:g});
+  const wg=new THREE.CylinderGeometry(0.45,0.45,0.35,16);
+  [[-1.2,-5.6],[1.2,-5.6],[-1.2,2],[1.2,2],[-1.2,3.2],[1.2,3.2]].forEach(([wx,wz])=>{const w=new THREE.Mesh(wg,mat(0x16191c));w.rotation.z=Math.PI/2;w.position.set(wx,0.45,wz);w.castShadow=true;g.add(w);});
+  return g;
+}
+truck(-14,-25.2,0,0xe9ecee);
+truck(5,-31,Math.PI/2,0x3c6e91);
+truck(17,-31,Math.PI/2,0xb54a3a);
+label("Muelle 2","Camión: 2 h 40 min",-14,5.4,-21.5,0.9);
+label("Cola de descarga","2 camiones esperando",11,5.6,-31,0.9);
+label("Muelle 1 · cerrado",null,-22,3.9,-19.6,0.55);label("Muelle 3 · sin operario",null,-6,3.9,-19.6,0.55);
+// conductor esperando
+const driver=makeHuman({vest:0x4a8f4a,helmet:0xffffff,shirt:0x555c63});driver.g.position.set(-11.6,0,-18.3);driver.g.rotation.y=-0.4;scene.add(driver.g);
+// pallets en el muelle esperando descarga
+[[-16,-17.6],[-12.8,-17.4]].forEach(([x,z])=>pallet(x,z,{collide:true}));
+
+/* Montacargas */
+function forklift(color=0xf2b705){
+  const g=new THREE.Group();
+  box(1.2,0.9,1.9,0,0.75,0,color,{parent:g});
+  box(1.2,0.7,0.5,0,0.95,-0.9,0x3a3f44,{parent:g});
+  box(0.08,1.5,0.08,-0.55,1.95,0.4,0x222,{parent:g});box(0.08,1.5,0.08,0.55,1.95,0.4,0x222,{parent:g});
+  box(0.08,1.5,0.08,-0.55,1.95,-0.6,0x222,{parent:g});box(0.08,1.5,0.08,0.55,1.95,-0.6,0x222,{parent:g});
+  box(1.2,0.08,1.1,0,2.7,-0.1,0x222,{parent:g});
+  box(0.1,2.6,0.1,-0.4,1.3,1.05,0x30353a,{parent:g});box(0.1,2.6,0.1,0.4,1.3,1.05,0x30353a,{parent:g});
+  const forks=new THREE.Group();forks.position.set(0,0.12,1.1);g.add(forks);
+  box(0.12,0.06,1.2,-0.3,0,0.6,0x30353a,{parent:forks});box(0.12,0.06,1.2,0.3,0,0.6,0x30353a,{parent:forks});
+  const wg=new THREE.CylinderGeometry(0.32,0.32,0.25,14);
+  [[-0.62,0.6],[0.62,0.6],[-0.62,-0.7],[0.62,-0.7]].forEach(([x,z])=>{const w=new THREE.Mesh(wg,mat(0x16191c));w.rotation.z=Math.PI/2;w.position.set(x,0.32,z);g.add(w);});
+  scene.add(g);return {g,forks};
+}
+const idleFork=forklift();idleFork.g.position.set(-17.6,0,-14.6);idleFork.g.rotation.y=Math.PI*0.85;addCollider(-17.6,-14.6,1.8,2.4);
+label("Montacargas detenido","Esperando operario",-17.6,4.2,-14.6,0.7);
+
+const moverF=forklift();
+const moverLoad=pallet(0,0,{parent:moverF.forks});moverLoad.position.set(0,0.04,0.6);
+const fPath=[[-10,-16.9],[13,-16.9],[16.5,-16.6],[13,-16.9],[13,-12.5],[26,-12.5],[24,-9],[1.5,-8.6],[-10,-12.5]];
+const fStops=new Set([2,5]); // se detiene en zona temporal y en calidad
+const F={seg:0,t:0,wait:0};
+label("Zona temporal",null,16.5,2.6,-16.6,0.7);label("Control de calidad",null,26,2.8,-12.5,0.7);
+[[15.3,-17.3],[17.7,-17.3],[15.3,-15.9]].forEach(([x,z])=>pallet(x,z,{collide:true}));
+pallet(27.2,-13.4,{collide:true});
+
+/* Pasillo 2 bloqueado (inventario) */
+[-4.2,-0.6,3,6.5].forEach((z,i)=>pallet(-13,z,{collide:true,stack:i%2?2:1,color:0xd2a35f}));
+pallet(-13.5,-7.4,{collide:true,color:0xd2a35f,stack:2});
+label("Ref. 4471","Cobertura: 94 días",-13,4.8,-3,0.75);
+
+/* Picker (movimiento) */
+const picker=makeHuman({vest:0xff7a1a,shirt:0x7a2e8c});scene.add(picker.g);
+const pPath=[[-7,11],[-7,-7.4],[5,-7.4],[5,4.2],[7.2,4.2]];
+const P={i:0,dir:1,wait:0,pos:new THREE.Vector3(-7,0,11)};
+const cart=box(0.7,0.7,0.5,0,0.5,0,0x3a3f44);
+label("Picking",null,-7,4.8,13.3,0.6);
+
+/* Banda transportadora con atascos (flujo) */
+const conv={x0:8,x1:27,z:2};
+box(conv.x1-conv.x0,0.15,1.2,(conv.x0+conv.x1)/2,0.85,conv.z,0x2b2f33,{collide:true});
+for(let x=conv.x0;x<=conv.x1;x+=1.9){box(0.1,0.8,0.1,x,0.4,conv.z-0.55,0x666d73);box(0.1,0.8,0.1,x,0.4,conv.z+0.55,0x666d73);}
+const beacon=new THREE.Mesh(new THREE.SphereGeometry(0.22,12,10),new THREE.MeshStandardMaterial({color:0x6b1d18,emissive:0x000000}));
+beacon.position.set(22,1.9,conv.z+0.7);scene.add(beacon);box(0.08,1,0.08,22,1.35,conv.z+0.7,0x666d73);
+const convBoxes=[];for(let i=0;i<9;i++){const b=box(0.7,0.55,0.7,conv.x0+0.5+i*2,1.2,conv.z,boxColors[i%4]);convBoxes.push(b);}
+const C={jam:false,timer:6};
+label("Banda a despacho","Atascos frecuentes",17,3.2,conv.z,0.75);
+
+/* Reproceso (defectos) */
+box(3,0.9,1.4,21,0.45,-5,0x7d878f,{collide:true});
+for(let i=0;i<5;i++)box(0.55,0.45,0.5,19.9+i*0.55,1.13,-5+(i%2?0.25:-0.2),0xc0392b);
+for(let i=0;i<9;i++)box(0.6,0.5,0.55,24+((i%3)*0.62),0.25+Math.floor(i/3)*0.5,-5.4+(i%2)*0.3,0xc0392b,{});
+addCollider(24.6,-5.2,2.2,1.4);
+const rw1=makeHuman({vest:0xff7a1a,shirt:0x2e8c6a});rw1.g.position.set(21,0,-6.2);scene.add(rw1.g);
+const rw2=makeHuman({vest:0xff7a1a,shirt:0x8c5a2e});rw2.g.position.set(21,0,-3.8);rw2.g.rotation.y=Math.PI;scene.add(rw2.g);
+label("Devoluciones","48 cajas por reetiquetar",21.8,3.6,-5,0.8);
+
+/* Empaque (sobreproceso) */
+const turn=new THREE.Group();turn.position.set(23,0,9);scene.add(turn);
+const disc=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,0.18,28),mat(0x3a3f44));disc.position.y=0.09;disc.receiveShadow=true;turn.add(disc);
+const wrapped=pallet(0,0,{parent:turn,h:1.3,color:0xb88a55});wrapped.position.y=0.18;
+const film=new THREE.Mesh(new THREE.CylinderGeometry(0.86,0.86,1.4,24,1,true),new THREE.MeshStandardMaterial({color:0xd8f0ff,transparent:true,opacity:0.35,roughness:.2,side:THREE.DoubleSide}));
+film.position.y=1.05;turn.add(film);
+[0.92,0.98].forEach(r=>{const f2=film.clone();f2.scale.set(r/0.86,1,r/0.86);turn.add(f2);});
+addCollider(23,9,2.2,2.2);
+box(0.25,2.6,0.25,24.4,1.3,7.6,0x666d73);
+const wrapper=makeHuman({vest:0xff7a1a,shirt:0x2e5b8c});wrapper.g.position.set(21.3,0,9);wrapper.g.rotation.y=Math.PI/2;scene.add(wrapper.g);
+pallet(26,7,{collide:true});pallet(26,11,{collide:true});
+label("Empaque","3 capas · 2 etiquetas",23,4,9,0.8);
+
+/* Despacho (sobreproducción) */
+for(let ix=0;ix<5;ix++)for(let iz=0;iz<3;iz++){if(ix===2&&iz===0)continue;pallet(6.2+ix*1.9,14.5+iz*1.8,{collide:true,h:1.2,color:0xb07d48});}
+label("Despacho · semana 43","22 pallets sin orden",10,4,16.5,0.9);
+
+/* Tablero (talento) */
+const bc=document.createElement("canvas");bc.width=512;bc.height=320;{const g=bc.getContext("2d");g.fillStyle="#f4f6f7";g.fillRect(0,0,512,320);g.fillStyle="#1b2a35";g.fillRect(0,0,512,70);g.fillStyle="#f2b705";g.font='700 36px "IBM Plex Sans", Arial';g.fillText("TABLERO DE MEJORAS",24,48);g.fillStyle="#1b2a35";g.font='600 30px "IBM Plex Sans", Arial';g.fillText("Ideas registradas: 0",24,130);g.fillStyle="#6a7780";g.font='500 26px "IBM Plex Mono", monospace';g.fillText("Última actualización: enero",24,180);g.strokeStyle="#c9d1d6";g.lineWidth=3;for(let i=0;i<3;i++){g.strokeRect(24+i*160,210,140,90);}}
+const board=new THREE.Mesh(new THREE.PlaneGeometry(4,2.5),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(bc),roughness:.9}));
+board.position.set(-29.75,1.9,16);board.rotation.y=Math.PI/2;scene.add(board);
+const sweeper=makeHuman({vest:0xff7a1a,shirt:0x4a4f8c});sweeper.g.position.set(-26.2,0,13.6);scene.add(sweeper.g);
+const broom=box(0.06,1.4,0.06,0,0,0,0x8a6a3a,{parent:sweeper.rArm});broom.position.set(0,-0.75,0.25);broom.rotation.x=0.5;
+label("Operario certificado","Asignado a barrer",-26.2,3.4,13.6,0.7);
+
+/* Marcadores de estación */
+const ringGeo=new THREE.RingGeometry(1.0,1.25,40);
+STATIONS.forEach(s=>{
+  const [x,z]=s.pos;
+  const ring=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xf2b705,transparent:true,opacity:.85,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2;ring.position.set(x,0.03,z);scene.add(ring);
+  const gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.35),new THREE.MeshStandardMaterial({color:0xf2b705,emissive:0x5a4200}));
+  gem.position.set(x,2.6,z);scene.add(gem);
+  s.ring=ring;s.gem=gem;s.prompted=false;
+});
+
+/* Jugador */
+const me=makeHuman({vest:0xf2b705,helmet:0xffffff,shirt:0x1f3b57});scene.add(me.g);
+const player={pos:new THREE.Vector3(2,0,-12),r:0.42,speed:6.2};
+const yesid=makeHuman({vest:0xff7a1a,shirt:0x8c2e2e});yesid.g.position.set(-11.2,0,-8.4);yesid.g.rotation.y=Math.PI*0.75;scene.add(yesid.g);addCollider(-11.2,-8.4,0.6,0.6);
+const claudia=makeHuman({vest:0x4a8f4a,shirt:0x2e5b8c,helmet:0xffffff});claudia.g.position.set(12.2,0,12.4);claudia.g.rotation.y=-Math.PI*0.75;scene.add(claudia.g);addCollider(12.2,12.4,0.6,0.6);
+
+/* ---------- Globos de diálogo ---------- */
+function wrapText(g,text,maxW){const words=text.split(" "),lines=[];let l="";words.forEach(w=>{const t=l?l+" "+w:w;if(g.measureText(t).width>maxW&&l){lines.push(l);l=w;}else l=t;});if(l)lines.push(l);return lines;}
+function makeBubble(){const c=document.createElement("canvas");c.width=512;c.height=230;const tex=new THREE.CanvasTexture(c);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthWrite:false,depthTest:false,transparent:true}));
+  sp.scale.set(4.8,4.8*230/512,1);sp.visible=false;sp.renderOrder=20;sp.userData={c,tex,text:""};scene.add(sp);return sp;}
+function setBubble(sp,text,tone="normal"){
+  if(sp.userData.text===text+tone)return;sp.userData.text=text+tone;
+  const {c,tex}=sp.userData,g=c.getContext("2d");g.clearRect(0,0,c.width,c.height);
+  g.font='600 32px "IBM Plex Sans", Arial, sans-serif';
+  const lines=wrapText(g,text,450).slice(0,4),h=36+lines.length*38;
+  g.fillStyle=tone==="good"?"#e3f7ea":tone==="bad"?"#fde3e0":"#ffffff";
+  g.strokeStyle="rgba(20,33,42,.35)";g.lineWidth=3;rr(g,6,6,500,h,24);g.fill();g.stroke();
+  g.beginPath();g.moveTo(232,h+4);g.lineTo(256,Math.min(h+52,226));g.lineTo(282,h+4);g.closePath();g.fill();
+  g.fillStyle="#14212a";lines.forEach((ln,i)=>g.fillText(ln,26,46+i*38));
+  tex.needsUpdate=true;}
+const talkers=[];
+function addTalker(h,lines,station=null,yOff=2.75){const b=makeBubble();talkers.push({h,lines,station,bubble:b,i:0,t:Math.random()*3,yOff});}
+const STATION_NPC={E:driver,T:{g:moverF.g},I:yesid,M:picker,D:rw1,S:wrapper,P:claudia,H:sweeper};
+STATIONS.forEach(s=>{s.npc=STATION_NPC[s.muda];addTalker(s.npc,[TALK[s.muda].short],s,s.muda==="T"?3.5:2.75);});
+addTalker(rw2,["¿Quién empacó esto?","Esta caja era para otro cliente..."]);
+const _wp=new THREE.Vector3();
+function updateTalkers(dt){
+  talkers.forEach(tk=>{
+    tk.h.g.getWorldPosition(_wp);
+    const d=Math.hypot(player.pos.x-_wp.x,player.pos.z-_wp.z);
+    const show=G.started&&!G.ended&&d<9;
+    tk.bubble.visible=show;if(!show)return;
+    let text,tone="normal";
+    const r=tk.station?G.results[tk.station.muda]:null;
+    if(r&&r.sol!=null){text=TALK[tk.station.muda].sol[r.sol].r;tone=r.solOk?"good":"bad";}
+    else{tk.t+=dt;if(tk.t>3.6){tk.t=0;tk.i=(tk.i+1)%tk.lines.length;}text=tk.lines[tk.i];}
+    setBubble(tk.bubble,text,tone);
+    tk.bubble.position.set(_wp.x,_wp.y+tk.yOff,_wp.z);
+  });
+}
+me.g.position.copy(player.pos);
+
+/* ---------- Entrada ---------- */
+const keys={};
+addEventListener("keydown",e=>{
+  if(e.target.tagName==="INPUT")return;
+  keys[e.key.toLowerCase()]=true;
+  if(G.open!==null){sheetKey(e);
+  } else if((e.key==="e"||e.key==="E"||e.key==="Enter")&&G.started&&!G.ended&&nearStation()) openSheet(nearStation());
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase()))e.preventDefault();
+});
+addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
+addEventListener("blur",()=>{for(const k in keys)keys[k]=false;});
+const joy={x:0,y:0,active:false,id:null};
+(()=>{const el=$("joy"),kn=$("knob");
+  const set=e=>{const r=el.getBoundingClientRect();let dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);const m=Math.hypot(dx,dy),max=r.width/2-10;if(m>max){dx*=max/m;dy*=max/m;}joy.x=dx/max;joy.y=dy/max;kn.style.transform=`translate(${dx}px,${dy}px)`;};
+  el.addEventListener("pointerdown",e=>{joy.active=true;joy.id=e.pointerId;el.setPointerCapture(e.pointerId);set(e);});
+  el.addEventListener("pointermove",e=>{if(joy.active&&e.pointerId===joy.id)set(e);});
+  const end=()=>{joy.active=false;joy.x=joy.y=0;kn.style.transform="";};
+  el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
+})();
+$("zIn").onclick=()=>{G.zoom=Math.max(0.55,G.zoom-0.15);};
+$("zOut").onclick=()=>{G.zoom=Math.min(1.6,G.zoom+0.15);};
+canvas.addEventListener("wheel",e=>{G.zoom=Math.min(1.6,Math.max(0.55,G.zoom+(e.deltaY>0?0.08:-0.08)));},{passive:true});
+$("inspect").onclick=()=>{const s=nearStation();if(s)openSheet(s);};
+
+/* ---------- Física simple ---------- */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function resolve(p,r){
+  for(const b of colliders){
+    const cx=clamp(p.x,b.minX,b.maxX),cz=clamp(p.z,b.minZ,b.maxZ);
+    const dx=p.x-cx,dz=p.z-cz,d2=dx*dx+dz*dz;
+    if(d2<r*r){
+      if(d2>1e-8){const d=Math.sqrt(d2);p.x=cx+dx/d*r;p.z=cz+dz/d*r;}
+      else{const opts=[[b.minX-r-p.x,0],[b.maxX+r-p.x,0],[0,b.minZ-r-p.z],[0,b.maxZ+r-p.z]].sort((a,c)=>Math.abs(a[0]+a[1])-Math.abs(c[0]+c[1]));p.x+=opts[0][0];p.z+=opts[0][1];}
+    }
+  }
+  p.x=clamp(p.x,-29.5,29.5);p.z=clamp(p.z,-19.5,19.5);
+}
+function nearStation(){let best=null,bd=3.3;STATIONS.forEach(s=>{const d=Math.hypot(player.pos.x-s.pos[0],player.pos.z-s.pos[1]);if(d<bd){bd=d;best=s;}});return best;}
+
+/* ---------- Panel: hablar → identificar muda → proponer solución ---------- */
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];}return a;}
+function openSheet(s){
+  G.open=s;G.hint=false;s.prompted=true;$("inspect").hidden=true;
+  const r=G.results[s.muda];
+  if(!r){G.stage="talk";G.cur=null;}
+  else{G.cur=r;G.stage=r.sol==null?"solve":"done";}
+  if(!s.order)s.order=shuffle([0,1,2]);
+  renderSheet();
+}
+function renderSheet(){
+  const s=G.open,T=TALK[s.muda],r=G.cur,st=G.stage;
+  const steps=["Escuchar","Identificar","Proponer"],si=st==="talk"?0:(st==="muda"||st==="mudaFb")?1:2;
+  let h=`<div class="steps">${steps.map((x,i)=>`<span class="${i===si?"on":""}">${i+1}. ${x}</span>`).join("")}</div>
+   <div class="npc"><div class="avatar">${esc(T.name[0])}</div><div><b>${esc(T.name)}</b><span class="muted">${esc(T.role)} · ${esc(s.zone)}</span></div></div>`;
+  if(st==="talk"){
+    h+=`<p class="quote"><small>${esc(T.name)} se queja</small>“${esc(T.say)}”</p>
+      <h2 style="font-size:1.2rem">${esc(s.title)}</h2><p>${esc(s.story)}</p><p class="evid">${esc(s.evid)}</p>
+      <div class="row"><button class="btn" id="goMuda">Analizar la situación (Enter)</button><button class="btn ghost" id="laterBtn">Seguir observando</button></div>`;
+  }else if(st==="muda"||st==="mudaFb"){
+    const ans=st==="mudaFb";
+    h+=`<h2 style="font-size:1.2rem">${esc(s.title)}</h2><p class="evid">${esc(s.evid)}</p>
+      <p class="q">¿Qué desperdicio (muda) ves en esta zona?</p>
+      <div class="opts">${MUDAS.map((m,k)=>{let c="";if(ans)c=m.id===s.muda?"is-ok":m.id===r.picked?"is-bad":"dim";return `<button class="opt ${c}" data-id="${m.id}" ${ans?"disabled":""}><span class="k">${k+1}</span><span>${m.name}</span></button>`;}).join("")}</div>`;
+    if(!ans){h+=(G.hint?`<p class="hint">Pista: ${esc(s.hint)}</p>`:"")+`<div class="row">${G.hint?"":`<button class="btn ghost" id="hintBtn">Pista (−3 puntos)</button>`}<button class="btn ghost" id="laterBtn">Seguir observando</button></div>`;}
+    else h+=`<div class="fb"><p class="verdict ${r.ok?"ok":"bad"}">${r.ok?`Correcto: ${mudaById(s.muda).name}.`:`Elegiste ${mudaById(r.picked).name}. Es ${mudaById(s.muda).name}.`}</p><p>${esc(s.why)}</p>
+      <div class="row"><button class="btn" id="goSolve">Responderle a ${esc(T.name)} (Enter)</button></div></div>`;
+  }else{
+    const done=st==="done";
+    h+=`<p class="quote"><small>${esc(T.name)} te pregunta</small>“Entonces, ¿qué me propones para solucionarlo?”</p>
+      <div class="sols">${s.order.map((idx,k)=>{const o=T.sol[idx];let c="";if(done)c=idx===0?"is-ok":idx===r.sol?"is-bad":"dim";return `<button class="sol ${c}" data-i="${idx}" ${done?"disabled":""}><span class="k">${k+1}</span><span>${esc(o.t)}</span></button>`;}).join("")}</div>`;
+    if(done){const o=T.sol[r.sol];
+      h+=`<div class="fb"><p class="quote ${r.solOk?"good":"bad"}"><small>${esc(T.name)} responde</small>“${esc(o.r)}”</p>
+        <p class="fix"><b>Cómo eliminarlo:</b> ${esc(s.fix)}</p>
+        <div class="row"><button class="btn" id="closeSheet">${allDone()&&!G.ended?"Ver informe":"Seguir recorriendo"}</button></div></div>`;}
+  }
+  $("sheet").hidden=false;$("sheet").innerHTML=h;
+  $("sheet").querySelectorAll(".opt").forEach(b=>b.onclick=()=>choose(b.dataset.id));
+  $("sheet").querySelectorAll(".sol").forEach(b=>b.onclick=()=>solve(+b.dataset.i));
+  const on=(id,fn)=>{const el=$(id);if(el)el.onclick=fn;return el;};
+  on("goMuda",()=>{G.stage="muda";renderSheet();});
+  on("goSolve",()=>{G.stage="solve";renderSheet();});
+  on("hintBtn",()=>{G.hint=true;renderSheet();});
+  on("laterBtn",closeSheet);
+  const c=on("closeSheet",closeSheet);if(c)c.focus();
+}
+function choose(id){const s=G.open;if(!s||G.stage!=="muda")return;const ok=id===s.muda;
+  G.cur={picked:id,ok,points:ok?(G.hint?7:10):0,hint:G.hint,sol:null,solOk:false,order:Object.keys(G.results).length+1,tMuda:G.elapsed};G.results[s.muda]=G.cur;G.stage="mudaFb";renderSheet();updateHUD();}
+function solve(idx){const s=G.open;if(!s||G.stage!=="solve")return;const r=G.cur,ok=idx===0;
+  r.sol=idx;r.solOk=ok;r.points+=ok?10:0;r.tSol=G.elapsed;G.sat=Math.max(0,Math.min(100,G.sat+(ok?6.25:-8)));
+  const col=r.ok&&ok?0x4cc77a:(r.ok||ok)?0xf2a33a:0xef6a5e,em=r.ok&&ok?0x0f3a1f:(r.ok||ok)?0x3a2a08:0x3a100c;
+  s.ring.material.color.setHex(col);s.gem.material.color.setHex(col);s.gem.material.emissive.setHex(em);
+  G.stage="done";renderSheet();updateHUD();}
+const allDone=()=>STATIONS.every(s=>G.results[s.muda]&&G.results[s.muda].sol!=null);
+function closeSheet(){$("sheet").hidden=true;G.open=null;if(allDone()&&!G.ended)endGame();}
+function sheetKey(e){
+  const st=G.stage,k=e.key;
+  if(st==="talk"){if(k==="Enter")$("goMuda")?.click();else if(k==="Escape")closeSheet();}
+  else if(st==="muda"){if(/^[1-8]$/.test(k))choose(MUDAS[+k-1].id);else if(k==="Escape")closeSheet();}
+  else if(st==="mudaFb"){if(k==="Enter"&&document.activeElement?.id!=="goSolve"){G.stage="solve";renderSheet();}}
+  else if(st==="solve"){if(/^[1-3]$/.test(k))solve(G.open.order[+k-1]);}
+  else if(st==="done"){if((k==="Enter"||k==="Escape")&&document.activeElement?.id!=="closeSheet")closeSheet();}
+}
+
+/* ---------- HUD ---------- */
+const score=()=>Object.values(G.results).reduce((a,r)=>a+r.points,0);
+const doneCount=()=>STATIONS.filter(s=>G.results[s.muda]&&G.results[s.muda].sol!=null).length;
+function updateHUD(){$("hFound").textContent=`${doneCount()}/8`;$("hPts").textContent=score();$("hSat").textContent=Math.round(G.sat)+" %";$("hSatBar").style.width=G.sat+"%";$("hSatBar").style.background=G.sat>=60?"var(--ok)":G.sat>=35?"var(--safety)":"var(--bad)";
+  $("routeList").innerHTML=STATIONS.map(s=>{const r=G.results[s.muda];const c=!r||r.sol==null?"":(r.ok&&r.solOk?"ok":"bad");return `<li><span class="dot ${c}"></span>${esc(s.zone)}</li>`;}).join("");}
+const fmt=t=>{t=Math.floor(t);return String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0");};
+let toastT=0;function toast(msg,sec=4){$("toast").textContent=msg;$("toast").hidden=false;toastT=sec;}
+
+/* Minimapa */
+const mini=$("mini"),mg=mini.getContext("2d");
+function drawMini(){
+  const W=mini.width,H=mini.height,sx=W/62,sz=H/42,tx=x=>(x+31)*sx,tz=z=>(z+21)*sz;
+  mg.fillStyle="#141c22";mg.fillRect(0,0,W,H);
+  mg.fillStyle="#26323b";mg.fillRect(tx(-30),tz(-20),60*sx,40*sz);
+  mg.fillStyle="#3c4c57";colliders.forEach(b=>mg.fillRect(tx(b.minX),tz(b.minZ),(b.maxX-b.minX)*sx,(b.maxZ-b.minZ)*sz));
+  STATIONS.forEach(s=>{const r=G.results[s.muda];mg.fillStyle=!r||r.sol==null?"#f2b705":(r.ok&&r.solOk?"#4cc77a":"#ef6a5e");mg.beginPath();mg.arc(tx(s.pos[0]),tz(s.pos[1]),5,0,7);mg.fill();});
+  mg.fillStyle="#ffffff";mg.beginPath();mg.arc(tx(player.pos.x),tz(player.pos.z),5.5,0,7);mg.fill();
+  mg.strokeStyle="#ffffff";mg.lineWidth=2;mg.beginPath();mg.moveTo(tx(player.pos.x),tz(player.pos.z));mg.lineTo(tx(player.pos.x)+Math.sin(me.g.rotation.y)*12,tz(player.pos.z)+Math.cos(me.g.rotation.y)*12);mg.stroke();
+}
+
+/* ---------- Bucle ---------- */
+function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+addEventListener("resize",resize);resize();
+const clock=new THREE.Clock();let miniT=0;
+const camTarget=new THREE.Vector3();
+function moveAlong(obj,path,state,speed,dt,stops){
+  // devuelve verdadero si se mueve
+  if(state.wait>0){state.wait-=dt;return false;}
+  const a=path[state.seg],b=path[(state.seg+1)%path.length];
+  const len=Math.hypot(b[0]-a[0],b[1]-a[1]);state.t+=speed*dt/len;
+  if(state.t>=1){state.t=0;state.seg=(state.seg+1)%path.length;if(stops&&stops.has(state.seg))state.wait=1.4;}
+  const p=path[state.seg],q=path[(state.seg+1)%path.length],t=state.t;
+  obj.position.set(p[0]+(q[0]-p[0])*t,0,p[1]+(q[1]-p[1])*t);
+  obj.rotation.y=Math.atan2(q[0]-p[0],q[1]-p[1]);return true;
+}
+function loop(){
+  const dt=Math.min(clock.getDelta(),0.05),t=clock.elapsedTime;
+  if(G.started&&!G.ended){G.elapsed+=dt;$("hTime").textContent=fmt(G.elapsed);}
+  // jugador
+  let mx=0,mz=0;
+  if(G.started&&!G.ended&&G.open===null){
+    if(keys["w"]||keys["arrowup"])mz-=1;if(keys["s"]||keys["arrowdown"])mz+=1;
+    if(keys["a"]||keys["arrowleft"])mx-=1;if(keys["d"]||keys["arrowright"])mx+=1;
+    mx+=joy.x;mz+=joy.y;
+  }
+  const m=Math.hypot(mx,mz);
+  if(m>0.08){const k=Math.min(1,m)/m;player.pos.x+=mx*k*player.speed*dt;player.pos.z+=mz*k*player.speed*dt;resolve(player.pos,player.r);
+    const target=Math.atan2(mx,mz);let d=target-me.g.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));me.g.rotation.y+=d*Math.min(1,dt*12);
+    animHuman(me,dt,player.speed*Math.min(1,m));}
+  else animHuman(me,dt,0,"idle");
+  me.g.position.copy(player.pos);
+  // estación cercana
+  if(G.started&&!G.ended&&G.open===null){
+    const s=nearStation();
+    if(s&&!(G.results[s.muda]&&G.results[s.muda].sol!=null)&&!s.prompted)openSheet(s);
+    $("inspect").hidden=!(s&&G.open===null);
+    if(s)$("inspect").textContent=G.results[s.muda]&&G.results[s.muda].sol!=null?"Ver de nuevo (E)":"Hablar con "+TALK[s.muda].name+" (E)";
+    STATIONS.forEach(st=>{if(Math.hypot(player.pos.x-st.pos[0],player.pos.z-st.pos[1])>4.5)st.prompted=false;});
+  }
+  // marcadores
+  STATIONS.forEach((s,i)=>{s.gem.position.y=2.6+Math.sin(t*2+i)*0.18;s.gem.rotation.y+=dt*1.5;const sc=1+Math.sin(t*3+i)*0.05;s.ring.scale.set(sc,sc,sc);});
+  // montacargas en recorrido
+  moveAlong(moverF.g,fPath,F,4.2,dt,fStops);
+  // picker
+  {
+    if(P.wait>0){P.wait-=dt;animHuman(picker,dt,0,"work");}
+    else{
+      const next=pPath[P.i+P.dir];
+      if(!next){P.dir*=-1;P.wait=1.8;}
+      else{const dx=next[0]-P.pos.x,dz=next[1]-P.pos.z,d=Math.hypot(dx,dz),sp=2.4*dt;
+        if(d<sp){P.pos.set(next[0],0,next[1]);P.i+=P.dir;if(P.i===0||P.i===pPath.length-1){P.dir*=-1;P.wait=1.8;}}
+        else{P.pos.x+=dx/d*sp;P.pos.z+=dz/d*sp;picker.g.rotation.y=Math.atan2(dx,dz);}
+        animHuman(picker,dt,2.4);}
+    }
+    picker.g.position.copy(P.pos);
+    cart.position.set(P.pos.x+Math.sin(picker.g.rotation.y)*0.8,0.5,P.pos.z+Math.cos(picker.g.rotation.y)*0.8);
+  }
+  // banda transportadora
+  C.timer-=dt;if(C.timer<=0){C.jam=!C.jam;C.timer=C.jam?4.5:7+Math.random()*3;}
+  beacon.material.emissive.setHex(C.jam&&Math.sin(t*10)>0?0xff2a1a:0x000000);
+  convBoxes.sort((a,b)=>b.position.x-a.position.x);
+  convBoxes.forEach((b,i)=>{
+    let limit=conv.x1-0.4;
+    if(C.jam&&b.position.x<22.2)limit=22.2;
+    if(i>0)limit=Math.min(limit,convBoxes[i-1].position.x-0.85);
+    b.position.x=Math.min(limit,b.position.x+1.6*dt);
+    if(b.position.x>=conv.x1-0.45&&i===0&&!C.jam){b.position.x=Math.min(conv.x0+0.4,convBoxes[convBoxes.length-1].position.x-0.85);}
+  });
+  // trabajadores
+  animHuman(rw1,dt,0,"work");animHuman(rw2,dt,0,"work");animHuman(wrapper,dt,0,"work");animHuman(sweeper,dt,0,"sweep");animHuman(driver,dt,0,"idle");
+  turn.rotation.y+=dt*1.6;
+  animHuman(yesid,dt,0,"idle");animHuman(claudia,dt,0,"idle");updateTalkers(dt);
+  // cámara
+  const off=new THREE.Vector3(0,15*G.zoom,12.5*G.zoom);
+  camTarget.lerp(player.pos,Math.min(1,dt*6));
+  camera.position.copy(camTarget).add(off);camera.lookAt(camTarget.x,1,camTarget.z);
+  $("exitBtn").hidden=!(G.started&&!G.ended);
+  if(toastT>0){toastT-=dt;if(toastT<=0)$("toast").hidden=true;}
+  miniT-=dt;if(miniT<=0){drawMini();miniT=0.1;}
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Pantallas ---------- */
+function startScreen(){
+  $("screen").hidden=false;
+  $("screen").innerHTML=`<div class="box card">
+    <p class="eyebrow">Lean en bodega y centro de distribución</p>
+    <h1>Bodega de las <span>Mudas</span></h1>
+    <p class="muted">Eres un analista de mejora continua. Recorre la bodega, observa cómo fluye (o se atasca) la operación y encuentra las 8 zonas marcadas con un anillo amarillo. En cada zona alguien te contará su problema: primero identifica la muda y después propónle una solución. Cuida la satisfacción del equipo y de los transportadores.</p>
+    <div class="grid8">${MUDAS.map(m=>`<div><b>${m.name}</b>${m.def}</div>`).join("")}</div>
+    <label class="field" for="pname">Nombre del estudiante o grupo<input type="text" id="pname" placeholder="Ej.: Grupo 2 – Logística" value="${esc(G.player)}"${window.GATE_NAME?" readonly":""}></label>${window.GATE_NAME?`<p class="muted" style="font-size:.85rem">Acceso aprobado por el docente para ${esc(window.GATE_NAME)}.</p>`:""}
+    <p class="keys">Muévete con <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> o las flechas (en celular, con el joystick). <kbd>E</kbd> inspecciona, <kbd>1</kbd>–<kbd>8</kbd> responde, rueda del mouse o <kbd>+</kbd>/<kbd>−</kbd> para el zoom.</p>
+    <div class="row"><button class="btn" id="startBtn">Entrar a la bodega</button></div></div>`;
+  $("startBtn").onclick=()=>{G.player=$("pname").value.trim();$("screen").hidden=true;G.started=true;G.startedAt=new Date();toast("Busca los anillos amarillos. Observa el muelle, los pasillos y la banda transportadora.",5);canvas.focus?.();};
+}
+/* Nombre fijado por el control de acceso (solo en la versión con aprobación) */
+window.onGateApproved=name=>{G.player=name;if(!G.started&&!G.ended)startScreen();};
+function endGame(){
+  G.ended=true;$("inspect").hidden=true;
+  const s=score(),nota=(s/160*5).toFixed(1),okM=STATIONS.filter(st=>(G.results[st.muda]||{}).ok).length,okS=STATIONS.filter(st=>(G.results[st.muda]||{}).solOk).length,early=!allDone();
+  const miss=STATIONS.filter(st=>!(G.results[st.muda]||{}).ok||!(G.results[st.muda]||{}).solOk);
+  const mark=b=>`<span style="color:var(--${b?"ok":"bad"})">${b?"Acertó":"Falló"}</span>`,none=`<span class="muted">Sin responder</span>`;
+  $("screen").hidden=false;
+  $("screen").innerHTML=`<div class="box card">
+    <p class="eyebrow">Inspección terminada${G.player?" · "+esc(G.player):""}</p>
+    <h1>Informe de <span>hallazgos</span></h1>
+    ${early?`<p class="hint">Saliste antes de terminar: completaste ${doneCount()} de 8 puestos. Los puestos sin responder cuentan 0 puntos.</p>`:""}
+    <div class="scoreRow">
+      <div><p class="muted">Nota</p><p class="big">${nota}<small> / 5,0</small></p></div>
+      <div><p class="muted">Puntos</p><p class="big" style="font-size:2rem">${s}<small> / 160</small></p></div>
+      <div><p class="muted">Mudas</p><p class="big" style="font-size:2rem">${okM}<small> de 8</small></p></div>
+      <div><p class="muted">Soluciones</p><p class="big" style="font-size:2rem">${okS}<small> de 8</small></p></div>
+      <div><p class="muted">Satisfacción</p><p class="big" style="font-size:2rem">${Math.round(G.sat)}<small> %</small></p></div>
+      <div><p class="muted">Tiempo</p><p class="big" style="font-size:2rem">${fmt(G.elapsed)}</p></div>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Puesto</th><th>Persona</th><th>Muda</th><th>Tu respuesta</th><th>Solución</th></tr></thead><tbody>
+    ${STATIONS.map(st=>{const r=G.results[st.muda];return `<tr><td>${esc(st.zone)}</td><td>${esc(TALK[st.muda].name)}</td><td>${mudaById(st.muda).name}</td><td>${!r?none:mark(r.ok)+(r.ok?"":" ("+mudaById(r.picked).name+")")}</td><td>${!r||r.sol==null?none:mark(r.solOk)}</td></tr>`;}).join("")}
+    </tbody></table></div>
+    ${miss.length?`<div style="display:grid;gap:8px"><h3>Para repasar</h3>${miss.map(m=>`<p class="muted"><b style="color:var(--ink)">${esc(m.zone)}:</b> ${esc(m.why)} <i>Solución:</i> ${esc(TALK[m.muda].sol[0].t)}</p>`).join("")}</div>`:""}
+    <p class="muted" style="font-size:.85rem" id="dlMsg">Descarga el detalle de tu calificación (se abre en Excel) para entregarlo al docente.</p>
+    <div class="row"><button class="btn" id="dlBtn" disabled>Preparando descarga…</button><button class="btn ghost" id="homeBtn">Volver al inicio</button><button class="btn ghost" id="again">Recorrer de nuevo</button></div></div>`;
+  $("again").onclick=restart;$("homeBtn").onclick=goHome;
+  setupDownload();
+}
+
+/* ---------- Descarga del detalle de calificación ---------- */
+const GAME_NAME="Bodega";
+function csvCell(v){v=v==null?"":String(v);return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+const dec=n=>String(n).replace(".",",");
+const two=n=>String(n).padStart(2,"0");
+const fdate=d=>d?`${d.getFullYear()}-${two(d.getMonth()+1)}-${two(d.getDate())}`:"";
+const ftime=d=>d?`${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`:"";
+function buildCSV(){
+  const end=new Date(),s=score(),nota=(s/160*5).toFixed(1);
+  const okM=STATIONS.filter(st=>G.results[st.muda]&&G.results[st.muda].ok).length;
+  const okS=STATIONS.filter(st=>G.results[st.muda]&&G.results[st.muda].solOk).length;
+  const L=[];const row=a=>L.push(a.map(csvCell).join(";"));
+  row(["DETALLE DE CALIFICACIÓN",GAME_NAME]);
+  row(["Estudiante o grupo",G.player||"Sin nombre"]);
+  row(["Fecha",fdate(G.startedAt||end)]);
+  row(["Hora de inicio",ftime(G.startedAt)]);
+  row(["Hora de finalización",ftime(end)]);
+  row(["Duración (mm:ss)",fmt(G.elapsed)]);
+  row(["Estado",allDone()?"Recorrido completo":"Salió antes de terminar ("+doneCount()+" de 8 puestos)"]);
+  row(["Nota (0 a 5)",dec(nota)]);
+  row(["Puntos",s+" de 160"]);
+  row(["Mudas identificadas",okM+" de 8"]);
+  row(["Soluciones correctas",okS+" de 8"]);
+  row(["Satisfacción final (%)",Math.round(G.sat)]);
+  row(["Puntaje","Muda: 10 pts (7 con pista) · Solución: 10 pts"]);
+  row([]);
+  row(["N.° orden","Puesto o zona","Persona","Situación","Muda correcta","Respuesta del estudiante","¿Acertó muda?","¿Usó pista?","Puntos muda","Solución elegida","Solución correcta","¿Acertó solución?","Puntos solución","Puntos totales","Momento de respuesta (mm:ss)","Explicación"]);
+  STATIONS.map(st=>({st,r:G.results[st.muda]})).sort((a,b)=>((a.r&&a.r.order)||99)-((b.r&&b.r.order)||99)).forEach(({st,r})=>{
+    const T=TALK[st.muda];
+    if(!r){row(["—",st.zone,T.name,st.title,mudaById(st.muda).name,"Sin responder","No","",0,"",T.sol[0].t,"No",0,0,"",st.why]);return;}
+    const pm=r.ok?(r.hint?7:10):0,ps=r.solOk?10:0;
+    row([r.order,st.zone,T.name,st.title,mudaById(st.muda).name,mudaById(r.picked).name,r.ok?"Sí":"No",r.hint?"Sí":"No",pm,
+         r.sol!=null?T.sol[r.sol].t:"Sin responder",T.sol[0].t,r.solOk?"Sí":"No",ps,pm+ps,fmt(r.tSol!=null?r.tSol:r.tMuda),st.why]);
+  });
+  return "﻿"+L.join("\r\n");
+}
+function fileName(){
+  const who=(G.player||"estudiante").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,40)||"estudiante";
+  const d=G.startedAt||new Date();
+  return `calificacion_${GAME_NAME.toLowerCase().replace(/[^a-z0-9]+/g,"_")}_${who}_${fdate(d)}_${two(d.getHours())}${two(d.getMinutes())}.csv`;
+}
+let downloadsNS;
+const dlReady=(async()=>{try{downloadsNS=window.claude&&window.claude.use?await window.claude.use("downloads"):null;}catch(e){downloadsNS=null;}return downloadsNS;})();
+async function setupDownload(){
+  const btn=$("dlBtn"),msg=$("dlMsg");if(!btn)return;
+  const ns=await dlReady;
+  if(!$("dlBtn"))return;
+  if(ns){
+    btn.disabled=false;btn.textContent="Descargar calificación (Excel)";
+    btn.onclick=async()=>{
+      btn.disabled=true;
+      try{await ns.save({filename:fileName(),data:buildCSV()});msg.textContent="Archivo descargado. Entrégalo al docente.";btn.textContent="Descargar de nuevo";}
+      catch(e){const c=e&&e.code;
+        if(c==="declined")msg.textContent="Cancelaste la descarga. Puedes intentarlo de nuevo.";
+        else if(c==="rate_limited")msg.textContent="Ya hay una descarga pendiente de confirmar. Espera un momento.";
+        else{msg.textContent="La descarga no está disponible aquí. Usa el botón para copiar el detalle y pégalo en Excel.";useCopy(btn,msg);return;}
+      }
+      btn.disabled=false;
+    };
+  }else if(!window.claude)useFileDownload(btn,msg);
+  else useCopy(btn,msg);
+}
+function useFileDownload(btn,msg){
+  btn.disabled=false;btn.textContent="Descargar calificación (Excel)";
+  btn.onclick=()=>{
+    try{
+      const url=URL.createObjectURL(new Blob([buildCSV()],{type:"text/csv;charset=utf-8"}));
+      const a=document.createElement("a");a.href=url;a.download=fileName();document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      msg.textContent="Archivo descargado. Entrégalo al docente.";btn.textContent="Descargar de nuevo";
+    }catch(e){useCopy(btn,msg);}
+  };
+}
+function useCopy(btn,msg){
+  btn.disabled=false;btn.textContent="Copiar detalle para Excel";
+  msg.textContent="La descarga no está disponible en este navegador. Copia el detalle y pégalo en una hoja de Excel.";
+  btn.onclick=async()=>{
+    const tsv=buildCSV().replace(/^﻿/,"").split("\r\n").map(l=>l.replace(/;/g,"\t")).join("\n");
+    try{await navigator.clipboard.writeText(tsv);msg.textContent="Detalle copiado. Pégalo en Excel con Ctrl+V.";}
+    catch(e){let ta=$("dlText");if(!ta){ta=document.createElement("textarea");ta.id="dlText";ta.readOnly=true;ta.style.cssText="width:100%;height:140px;font:12px var(--f-mono);background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px";msg.after(ta);}
+      ta.value=tsv;ta.focus();ta.select();msg.textContent="Selecciona el texto (ya está marcado), cópialo y pégalo en Excel.";}
+  };
+}
+
+
+/* ---------- Salir ---------- */
+function restart(){G.results={};G.ended=false;G.elapsed=0;G.sat=50;STATIONS.forEach(s=>{s.prompted=false;s.order=null;s.ring.material.color.setHex(0xf2b705);s.gem.material.color.setHex(0xf2b705);s.gem.material.emissive.setHex(0x5a4200);});player.pos.set(2,0,-12);camTarget.copy(player.pos);$("hTime").textContent="00:00";updateHUD();$("screen").hidden=true;G.started=true;G.startedAt=new Date();}
+function goHome(){restart();G.started=false;startScreen();}
+function askExit(){
+  if(!G.started||G.ended)return;
+  if(G.open!==null){$("sheet").hidden=true;G.open=null;}
+  G.started=false;$("inspect").hidden=true;
+  const n=doneCount();
+  $("screen").hidden=false;
+  $("screen").innerHTML=`<div class="box card" role="dialog" aria-labelledby="exitTitle">
+    <p class="eyebrow">Recorrido en pausa</p>
+    <h1 id="exitTitle" style="font-size:clamp(1.6rem,5vw,2.2rem)">¿Quieres <span>salir</span>?</h1>
+    <p class="muted">Llevas ${n} de 8 puestos completos y ${score()} puntos. Si terminas ahora, los puestos sin responder cuentan 0 puntos.</p>
+    <div class="row">
+      <button class="btn" id="exFinish">Terminar y ver mi calificación</button>
+      <button class="btn ghost" id="exHome">Salir sin calificación (volver al inicio)</button>
+      <button class="btn ghost" id="exStay">Seguir jugando</button>
+    </div></div>`;
+  $("exFinish").onclick=()=>{G.started=true;endGame();};
+  $("exHome").onclick=goHome;
+  $("exStay").onclick=()=>{$("screen").hidden=true;G.started=true;};
+  $("exStay").focus();
+}
+$("exitBtn").onclick=askExit;
+
+updateHUD();camTarget.copy(player.pos);startScreen();loop();
+</script>
+
+<script src="config.js"></script>
+<script src="gate.js"></script>
+</body>
+</html>

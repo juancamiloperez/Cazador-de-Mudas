@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mudas Lean · Juegos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: portada sencilla con tres tarjetas de juego en rejilla que se apila en móvil */
+:root{
+  --bg:#eef2f1; --paper:#ffffff; --ink:#14231f; --muted:#5a6b66; --line:#cfdad6; --accent:#0f6b5c; --safety:#b98a00; --money:#1d7a52;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1715;--paper:#17221f;--ink:#e4ece9;--muted:#97a9a3;--line:#2b3a36;--accent:#4fbfa8;--safety:#f2b705;--money:#46d39a;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--f-body)}
+.wrap{max-width:980px;margin:0 auto;padding-inline:16px;padding-block:40px 56px;display:grid;gap:28px}
+.eyebrow{font:500 .75rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0}
+h1{font:800 clamp(2rem,6vw,3.2rem)/1.05 var(--f-display);letter-spacing:-.02em;margin:6px 0 10px;text-wrap:balance}
+h1 span{color:var(--accent)}
+.lead{color:var(--muted);max-width:62ch;margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.game{display:grid;gap:10px;align-content:start;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:22px;text-decoration:none;color:inherit;transition:border-color .15s,transform .15s}
+.game:hover,.game:focus-visible{border-color:var(--c);transform:translateY(-2px);outline:none}
+.game .tag{font:500 .7rem/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--c)}
+.game h2{font:700 1.35rem/1.15 var(--f-display);margin:0}
+.game p{margin:0;color:var(--muted);font-size:.95rem}
+.game .go{font-weight:600;color:var(--c)}
+.note{font-size:.88rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+@media (prefers-reduced-motion:reduce){.game{transition:none}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="eyebrow">Lean en procesos administrativos, financieros y logísticos</p>
+    <h1>Juegos de las <span>8 mudas</span></h1>
+    <p class="lead">Identifica los desperdicios de un proceso real, conversa con las personas afectadas y propone soluciones. Al terminar puedes descargar el detalle de tu calificación.</p>
+  </header>
+  <section class="grid" aria-label="Juegos">
+    <a class="game" href="preguntas.html" style="--c:var(--accent)">
+      <span class="tag">Casos · 8 a 18 preguntas</span>
+      <h2>Cazadores de Mudas Financieras</h2>
+      <p>Recorre el proceso de cuentas por pagar caso por caso y clasifica cada desperdicio.</p>
+      <span class="go">Jugar →</span>
+    </a>
+    <a class="game" href="oficina.html" style="--c:var(--money)">
+      <span class="tag">3D · Contabilidad y tesorería</span>
+      <h2>Oficina Financiera de las Mudas</h2>
+      <p>Audita ocho puestos, escucha las quejas del equipo y propón cómo eliminar cada muda.</p>
+      <span class="go">Jugar →</span>
+    </a>
+    <a class="game" href="bodega.html" style="--c:var(--safety)">
+      <span class="tag">3D · Bodega y despacho</span>
+      <h2>Bodega de las Mudas</h2>
+      <p>Recorre muelles, pasillos y despacho; observa el flujo y sus atascos.</p>
+      <span class="go">Jugar →</span>
+    </a>
+  </section>
+  <p class="note">Si el docente activó la aprobación, cada juego te pedirá tu nombre y se abrirá cuando el docente apruebe tu solicitud. Una aprobación sirve para los tres juegos en este mismo navegador. Los juegos 3D funcionan mejor en computador.</p>
+</main>
+</body>
+</html>
